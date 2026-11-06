@@ -1582,105 +1582,6 @@
                 </p>
               </div>
 
-              <!-- TOTP 2FA -->
-              <div
-                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
-              >
-                <div>
-                  <label class="font-medium text-gray-900 dark:text-white">{{
-                    t("admin.settings.registration.totp")
-                  }}</label>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.registration.totpHint") }}
-                  </p>
-                  <!-- Warning when encryption key not configured -->
-                  <p
-                    v-if="!form.totp_encryption_key_configured"
-                    class="mt-2 text-sm text-amber-600 dark:text-amber-400"
-                  >
-                    {{ t("admin.settings.registration.totpKeyNotConfigured") }}
-                  </p>
-                </div>
-                <Toggle
-                  v-model="form.totp_enabled"
-                  :disabled="!form.totp_encryption_key_configured"
-                />
-              </div>
-
-              <!-- Passkey sign-in -->
-              <div
-                class="border-t border-gray-100 pt-4 dark:border-dark-700"
-                data-testid="passkey-settings"
-              >
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <label class="font-medium text-gray-900 dark:text-white">{{
-                      t("admin.settings.security.passkey")
-                    }}</label>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                      {{ t("admin.settings.security.passkeyHint") }}
-                    </p>
-                  </div>
-                  <Toggle
-                    v-model="form.passkey_enabled"
-                    data-testid="passkey-toggle"
-                    :disabled="!form.passkey_configured"
-                  />
-                </div>
-                <div
-                  class="mt-3 rounded-lg border px-3 py-2 text-sm"
-                  :class="
-                    form.passkey_configured
-                      ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300'
-                      : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
-                  "
-                  data-testid="passkey-config-status"
-                >
-                  <p class="font-medium">
-                    {{
-                      form.passkey_configured
-                        ? t("admin.settings.security.passkeyConfigured")
-                        : t("admin.settings.security.passkeyNotConfigured")
-                    }}
-                  </p>
-                  <p class="mt-1 break-all">
-                    {{ t("admin.settings.security.passkeyRPID") }}:
-                    {{
-                      form.passkey_rp_id ||
-                      t("admin.settings.security.passkeyValueNotConfigured")
-                    }}
-                  </p>
-                  <p class="mt-1 break-all">
-                    {{ t("admin.settings.security.passkeyOrigins") }}:
-                    {{
-                      form.passkey_rp_origins.length > 0
-                        ? form.passkey_rp_origins.join(", ")
-                        : t(
-                            "admin.settings.security.passkeyValueNotConfigured",
-                          )
-                    }}
-                  </p>
-                  <p v-if="!form.passkey_configured" class="mt-2">
-                    {{ t("admin.settings.security.passkeyDeploymentHint") }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- 敏感操作 step-up 2FA -->
-              <div
-                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
-              >
-                <div>
-                  <label class="font-medium text-gray-900 dark:text-white">{{
-                    t("admin.settings.security.stepUp")
-                  }}</label>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.security.stepUpHint") }}
-                  </p>
-                </div>
-                <Toggle v-model="form.step_up_enabled" />
-              </div>
-
               <!-- 会话 IP/UA 绑定 -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -11452,10 +11353,11 @@ async function saveSettings() {
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
       password_reset_enabled: form.password_reset_enabled,
-      totp_enabled: form.totp_enabled,
-      passkey_enabled: form.passkey_enabled,
+      // 已移除用户侧 2FA、step-up 与 Passkey 功能，保存设置时保持关闭。
+      totp_enabled: false,
+      passkey_enabled: false,
       session_binding_enabled: form.session_binding_enabled,
-      step_up_enabled: form.step_up_enabled,
+      step_up_enabled: false,
       // 清空数字框时 v-model.number 会得到空串，后端 int 字段解析空串会 400 拒绝整次保存；
       // 空/非法值回退默认 180（与后端 parseAuditLogRetentionDays("") 语义一致，0 仍表示永久保留）。
       audit_log_retention_days: Number.isFinite(form.audit_log_retention_days)
