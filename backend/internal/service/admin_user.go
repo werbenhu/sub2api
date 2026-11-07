@@ -156,7 +156,31 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 			input.ActorAdminID, user.ID)
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
+	s.createEnterpriseDefaultAPIKey(ctx, user)
 	return user, nil
+}
+
+func (s *adminServiceImpl) createEnterpriseDefaultAPIKey(ctx context.Context, user *User) {
+	if s == nil || user == nil || user.Role != RoleUser || s.enterpriseAPIKeyCreator == nil || s.settingService == nil || s.settingService.settingRepo == nil || s.groupRepo == nil {
+		return
+	}
+	for _, item := range s.settingService.GetDefaultSubscriptions(ctx) {
+		if item.GroupID <= 0 {
+			continue
+		}
+		group, err := s.groupRepo.GetByID(ctx, item.GroupID)
+		if err != nil || group == nil || group.Status != StatusActive || group.Platform != PlatformComposite || !group.IsSubscriptionType() {
+			continue
+		}
+		groupID := group.ID
+		if _, err := s.enterpriseAPIKeyCreator.Create(ctx, user.ID, CreateAPIKeyRequest{
+			Name:    "默认企业模型 Key",
+			GroupID: &groupID,
+		}); err != nil {
+			logger.LegacyPrintf("service.admin", "failed to create enterprise default api key: user_id=%d group_id=%d err=%v", user.ID, groupID, err)
+		}
+		return
+	}
 }
 
 // ensureNotLastAdmin 降级管理员前确认系统中仍存在其他管理员，防止零 admin 锁死。

@@ -297,6 +297,7 @@ type APIKeyService struct {
 	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
 	concurrencyService        *ConcurrencyService
 	cfg                       *config.Config
+	settingService            *SettingService
 	authCacheL1               *ristretto.Cache
 	authNegativeCacheL1       *ristretto.Cache
 	authCfg                   apiKeyAuthCacheConfig
@@ -314,6 +315,12 @@ type APIKeyService struct {
 	authInvalidationFailures  atomic.Uint64
 	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
 	lastUsedTouchSF           singleflight.Group
+}
+
+// SetSettingService attaches the settings reader used for enterprise defaults.
+// It is optional so existing lightweight test/service construction remains valid.
+func (s *APIKeyService) SetSettingService(settingService *SettingService) {
+	s.settingService = settingService
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -501,6 +508,13 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
+	// In enterprise mode, every newly created key uses the unified model
+	// gateway. The group is selected from the existing default-subscription
+	// settings, so clients cannot bypass the policy by sending another group ID.
+	if groupID := s.defaultEnterpriseGroupID(ctx); groupID > 0 {
+		req.GroupID = &groupID
+	}
+
 	// 验证 IP 白名单格式
 	if len(req.IPWhitelist) > 0 {
 		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
@@ -597,6 +611,23 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	s.compileAPIKeyIPRules(apiKey)
 
 	return apiKey, nil
+}
+
+func (s *APIKeyService) defaultEnterpriseGroupID(ctx context.Context) int64 {
+	if s == nil || s.settingService == nil || s.settingService.settingRepo == nil || s.groupRepo == nil {
+		return 0
+	}
+	for _, item := range s.settingService.GetDefaultSubscriptions(ctx) {
+		if item.GroupID <= 0 {
+			continue
+		}
+		group, err := s.groupRepo.GetByID(ctx, item.GroupID)
+		if err != nil || group == nil || group.Status != StatusActive || group.Platform != PlatformComposite || !group.IsSubscriptionType() {
+			continue
+		}
+		return group.ID
+	}
+	return 0
 }
 
 // List 获取用户的API Key列表
