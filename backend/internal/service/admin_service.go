@@ -721,7 +721,7 @@ type adminServiceImpl struct {
 	compositeResolver    *CompositeRouteResolver
 	// 分组平台变更后用来失效渠道缓存；可为 nil（缓存会在 TTL 到期后自然重建）
 	channelCacheInvalidator ChannelCacheInvalidator
-	enterpriseAPIKeyCreator interface {
+	defaultAPIKeyCreator    interface {
 		Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error)
 	}
 }
@@ -765,44 +765,44 @@ func NewAdminService(
 	compositeRouteRepo CompositeModelRouteRepository,
 	compositeResolver *CompositeRouteResolver,
 	channelCacheInvalidator ChannelCacheInvalidator,
-	enterpriseAPIKeyCreators ...interface {
+	defaultAPIKeyCreators ...interface {
 		Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error)
 	},
 ) AdminService {
-	var enterpriseAPIKeyCreator interface {
+	var defaultAPIKeyCreator interface {
 		Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error)
 	}
-	if len(enterpriseAPIKeyCreators) > 0 {
-		enterpriseAPIKeyCreator = enterpriseAPIKeyCreators[0]
+	if len(defaultAPIKeyCreators) > 0 {
+		defaultAPIKeyCreator = defaultAPIKeyCreators[0]
 	}
 	return &adminServiceImpl{
-		cfg:                     cfg,
-		userRepo:                userRepo,
-		groupRepo:               groupRepo,
-		groupDuplicateRepo:      groupRepo,
-		emptyGroupDeleteRepo:    groupRepo,
-		accountRepo:             accountRepo,
-		accountDuplicateRepo:    accountRepo,
-		accountBillingRepo:      accountRepo,
-		proxyRepo:               proxyRepo,
-		apiKeyRepo:              apiKeyRepo,
-		redeemCodeRepo:          redeemCodeRepo,
-		userGroupRateRepo:       userGroupRateRepo,
-		userRPMCache:            userRPMCache,
-		billingCacheService:     billingCacheService,
-		proxyProber:             proxyProber,
-		proxyLatencyCache:       proxyLatencyCache,
-		authCacheInvalidator:    authCacheInvalidator,
-		entClient:               entClient,
-		settingService:          settingService,
-		defaultSubAssigner:      defaultSubAssigner,
-		userSubRepo:             userSubRepo,
-		privacyClientFactory:    privacyClientFactory,
-		runtimeBlocker:          runtimeBlocker,
-		affiliateService:        affiliateService,
-		compositeRouteRepo:      compositeRouteRepo,
-		compositeResolver:       compositeResolver,
-		enterpriseAPIKeyCreator: enterpriseAPIKeyCreator,
+		cfg:                  cfg,
+		userRepo:             userRepo,
+		groupRepo:            groupRepo,
+		groupDuplicateRepo:   groupRepo,
+		emptyGroupDeleteRepo: groupRepo,
+		accountRepo:          accountRepo,
+		accountDuplicateRepo: accountRepo,
+		accountBillingRepo:   accountRepo,
+		proxyRepo:            proxyRepo,
+		apiKeyRepo:           apiKeyRepo,
+		redeemCodeRepo:       redeemCodeRepo,
+		userGroupRateRepo:    userGroupRateRepo,
+		userRPMCache:         userRPMCache,
+		billingCacheService:  billingCacheService,
+		proxyProber:          proxyProber,
+		proxyLatencyCache:    proxyLatencyCache,
+		authCacheInvalidator: authCacheInvalidator,
+		entClient:            entClient,
+		settingService:       settingService,
+		defaultSubAssigner:   defaultSubAssigner,
+		userSubRepo:          userSubRepo,
+		privacyClientFactory: privacyClientFactory,
+		runtimeBlocker:       runtimeBlocker,
+		affiliateService:     affiliateService,
+		compositeRouteRepo:   compositeRouteRepo,
+		compositeResolver:    compositeResolver,
+		defaultAPIKeyCreator: defaultAPIKeyCreator,
 
 		channelCacheInvalidator: channelCacheInvalidator,
 	}

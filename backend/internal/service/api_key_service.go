@@ -297,7 +297,6 @@ type APIKeyService struct {
 	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
 	concurrencyService        *ConcurrencyService
 	cfg                       *config.Config
-	settingService            *SettingService
 	authCacheL1               *ristretto.Cache
 	authNegativeCacheL1       *ristretto.Cache
 	authCfg                   apiKeyAuthCacheConfig
@@ -315,12 +314,6 @@ type APIKeyService struct {
 	authInvalidationFailures  atomic.Uint64
 	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
 	lastUsedTouchSF           singleflight.Group
-}
-
-// SetSettingService attaches the settings reader used for enterprise defaults.
-// It is optional so existing lightweight test/service construction remains valid.
-func (s *APIKeyService) SetSettingService(settingService *SettingService) {
-	s.settingService = settingService
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -508,10 +501,11 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	// In enterprise mode, omitting the group selects the unified model gateway.
-	// An explicit group remains valid so special users can use dedicated groups.
+	// When a user omits the group, use the first active group assigned to that
+	// user. An explicit group remains valid so special users can use dedicated
+	// groups.
 	if req.GroupID == nil {
-		if groupID := s.defaultEnterpriseGroupID(ctx); groupID > 0 {
+		if groupID := s.defaultUserGroupID(ctx, user); groupID > 0 {
 			req.GroupID = &groupID
 		}
 	}
@@ -614,16 +608,16 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	return apiKey, nil
 }
 
-func (s *APIKeyService) defaultEnterpriseGroupID(ctx context.Context) int64 {
-	if s == nil || s.settingService == nil || s.settingService.settingRepo == nil || s.groupRepo == nil {
+func (s *APIKeyService) defaultUserGroupID(ctx context.Context, user *User) int64 {
+	if s == nil || user == nil || s.groupRepo == nil {
 		return 0
 	}
-	for _, item := range s.settingService.GetDefaultSubscriptions(ctx) {
-		if item.GroupID <= 0 {
+	for _, groupID := range user.AllowedGroups {
+		if groupID <= 0 {
 			continue
 		}
-		group, err := s.groupRepo.GetByID(ctx, item.GroupID)
-		if err != nil || group == nil || group.Status != StatusActive || group.Platform != PlatformComposite || !group.IsSubscriptionType() {
+		group, err := s.groupRepo.GetByID(ctx, groupID)
+		if err != nil || group == nil || group.Status != StatusActive {
 			continue
 		}
 		return group.ID

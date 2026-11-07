@@ -156,28 +156,33 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 			input.ActorAdminID, user.ID)
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
-	s.createEnterpriseDefaultAPIKey(ctx, user)
+	s.createDefaultAPIKeyForAssignedGroup(ctx, user)
 	return user, nil
 }
 
-func (s *adminServiceImpl) createEnterpriseDefaultAPIKey(ctx context.Context, user *User) {
-	if s == nil || user == nil || user.Role != RoleUser || s.enterpriseAPIKeyCreator == nil || s.settingService == nil || s.settingService.settingRepo == nil || s.groupRepo == nil {
+func (s *adminServiceImpl) createDefaultAPIKeyForAssignedGroup(ctx context.Context, user *User) {
+	if s == nil || user == nil || user.Role != RoleUser || len(user.AllowedGroups) == 0 || s.defaultAPIKeyCreator == nil || s.groupRepo == nil {
 		return
 	}
-	for _, item := range s.settingService.GetDefaultSubscriptions(ctx) {
-		if item.GroupID <= 0 {
+	if s.apiKeyRepo != nil {
+		count, err := s.apiKeyRepo.CountByUserID(ctx, user.ID)
+		if err == nil && count > 0 {
+			return
+		}
+	}
+	for _, groupID := range user.AllowedGroups {
+		if groupID <= 0 {
 			continue
 		}
-		group, err := s.groupRepo.GetByID(ctx, item.GroupID)
-		if err != nil || group == nil || group.Status != StatusActive || group.Platform != PlatformComposite || !group.IsSubscriptionType() {
+		group, err := s.groupRepo.GetByID(ctx, groupID)
+		if err != nil || group == nil || group.Status != StatusActive {
 			continue
 		}
-		groupID := group.ID
-		if _, err := s.enterpriseAPIKeyCreator.Create(ctx, user.ID, CreateAPIKeyRequest{
-			Name:    "默认企业模型 Key",
+		if _, err := s.defaultAPIKeyCreator.Create(ctx, user.ID, CreateAPIKeyRequest{
+			Name:    "默认分组 Key",
 			GroupID: &groupID,
 		}); err != nil {
-			logger.LegacyPrintf("service.admin", "failed to create enterprise default api key: user_id=%d group_id=%d err=%v", user.ID, groupID, err)
+			logger.LegacyPrintf("service.admin", "failed to create default api key: user_id=%d group_id=%d err=%v", user.ID, groupID, err)
 		}
 		return
 	}
@@ -313,6 +318,9 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 
 	if err := s.userRepo.Update(ctx, user, fields); err != nil {
 		return nil, err
+	}
+	if fields.AllowedGroups && len(user.AllowedGroups) > 0 && !sameInt64Set(user.AllowedGroups, oldAllowedGroups) {
+		s.createDefaultAPIKeyForAssignedGroup(ctx, user)
 	}
 
 	// 角色变更属权限敏感操作，落审计日志（含操作者），便于事后追溯。
