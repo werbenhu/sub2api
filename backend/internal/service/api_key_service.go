@@ -508,11 +508,12 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	// In enterprise mode, every newly created key uses the unified model
-	// gateway. The group is selected from the existing default-subscription
-	// settings, so clients cannot bypass the policy by sending another group ID.
-	if groupID := s.defaultEnterpriseGroupID(ctx); groupID > 0 {
-		req.GroupID = &groupID
+	// In enterprise mode, omitting the group selects the unified model gateway.
+	// An explicit group remains valid so special users can use dedicated groups.
+	if req.GroupID == nil {
+		if groupID := s.defaultEnterpriseGroupID(ctx); groupID > 0 {
+			req.GroupID = &groupID
+		}
 	}
 
 	// 验证 IP 白名单格式

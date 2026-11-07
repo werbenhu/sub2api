@@ -115,7 +115,6 @@ export default {
     disable: 'Disable',
     nameLabel: 'Name',
     namePlaceholder: 'My API Key',
-    enterpriseDefaultGroupHint: 'New keys are automatically bound to the enterprise default model group.',
     groupLabel: 'Group',
     providerLabel: 'Provider',
     providers: {

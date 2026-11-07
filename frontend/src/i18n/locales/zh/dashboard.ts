@@ -115,7 +115,6 @@ export default {
     disable: '禁用',
     nameLabel: '名称',
     namePlaceholder: '我的 API 密钥',
-    enterpriseDefaultGroupHint: '新建密钥将自动绑定企业默认模型分组。',
     groupLabel: '分组',
     providerLabel: '厂商',
     providers: {
