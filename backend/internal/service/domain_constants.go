@@ -487,6 +487,11 @@ const (
 	// When false: runner skips scheduling and user-facing endpoints return an empty list.
 	SettingKeyChannelMonitorEnabled = "channel_monitor_enabled"
 
+	// SettingKeyChannelMonitorUserVisible controls whether the user-facing
+	// sidebar exposes the channel status entry. It does not disable monitoring
+	// itself or the administrator entry.
+	SettingKeyChannelMonitorUserVisible = "channel_monitor_user_visible"
+
 	// SettingKeyChannelMonitorMode selects exclusive implementation:
 	// "v1" active probes, "v2" passive aggregation. Default "v1" (opt-in to v2).
 	SettingKeyChannelMonitorMode = "channel_monitor_mode"

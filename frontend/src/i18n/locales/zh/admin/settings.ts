@@ -20,6 +20,8 @@ export default {
           configureLink: '前往 渠道管理 > 渠道监控 配置监控项',
           enabled: '启用渠道监控',
           enabledHint: '关闭后 V1 调度器与 V2 聚合均停止；已有配置与历史保留。',
+          userVisible: '在用户端显示渠道状态',
+          userVisibleHint: '关闭后仅隐藏用户侧边栏中的“渠道状态”，管理员入口和监控任务不受影响。',
           mode: '监控模式',
           modeHint: '默认 V1（主动探测）。仅在需要被动聚合时切换到 V2；同一时间只能启用一种实现。',
           modeV2: 'V2 被动监控',

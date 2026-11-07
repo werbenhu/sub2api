@@ -20,6 +20,8 @@ export default {
           configureLink: 'Configure monitors in Channel Management > Channel Monitor',
           enabled: 'Enable Channel Monitor',
           enabledHint: 'Disabling stops both the V1 scheduler and V2 aggregation; existing config and history are kept.',
+          userVisible: 'Show channel status to users',
+          userVisibleHint: 'When disabled, only the user sidebar entry is hidden. Admin access and monitoring jobs remain available.',
           mode: 'Monitor mode',
           modeHint: 'Default is V1 (active probes). Switch to V2 only when you want passive aggregation; only one implementation can be active at a time.',
           modeV2: 'V2 passive monitoring',

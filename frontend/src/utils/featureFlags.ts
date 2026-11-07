@@ -99,6 +99,11 @@ export const FeatureFlags = {
     mode: 'opt-out',
     label: 'Channel Monitor',
   }),
+  channelMonitorUserVisible: defineFlag({
+    key: 'channel_monitor_user_visible',
+    mode: 'opt-out',
+    label: 'User Channel Status Menu',
+  }),
   availableChannels: defineFlag({
     key: 'available_channels_enabled',
     mode: 'opt-in',
