@@ -1190,6 +1190,7 @@ export default {
         target: 'Target',
         scope: 'Scope',
         priority: 'Priority',
+        publicModelHint: 'Use a plain ID such as gpt-5 to merge same-name routes with priority and round-robin selection; use a provider prefix such as openai/gpt-5 or kimi/gpt-5 to expose separate models.',
         addRoute: 'Add Route',
         editRoute: 'Edit Route',
         matchType: 'Match',

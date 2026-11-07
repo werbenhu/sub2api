@@ -149,6 +149,53 @@ func TestCompositeRouteResolverExplicitExactRouteRewritesModel(t *testing.T) {
 	require.Equal(t, int64(10), decision.Route.ID)
 }
 
+func TestCompositeRouteResolverRoundRobinsEqualPriorityRoutes(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{
+		routes: []CompositeModelRoute{
+			{ID: 1, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, UpstreamModel: "gpt-5", Endpoint: CompositeRouteEndpointAny, Priority: 10, Enabled: true},
+			{ID: 2, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformKimi, UpstreamModel: "k3", Endpoint: CompositeRouteEndpointAny, Priority: 10, Enabled: true},
+		},
+	})
+
+	for _, want := range []string{PlatformOpenAI, PlatformKimi, PlatformOpenAI, PlatformKimi} {
+		decision, err := resolver.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+		require.NoError(t, err)
+		require.True(t, decision.Matched)
+		require.Equal(t, want, decision.TargetPlatform)
+	}
+}
+
+func TestCompositeRouteResolverPriorityWinsBeforeRoundRobin(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{
+		routes: []CompositeModelRoute{
+			{ID: 1, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, Endpoint: CompositeRouteEndpointAny, Priority: 1, Enabled: true},
+			{ID: 2, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformKimi, Endpoint: CompositeRouteEndpointAny, Priority: 10, Enabled: true},
+		},
+	})
+
+	for range 3 {
+		decision, err := resolver.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+		require.NoError(t, err)
+		require.True(t, decision.Matched)
+		require.Equal(t, PlatformOpenAI, decision.TargetPlatform)
+	}
+}
+
+func TestCompositeRouteResolverListExactPublicModelsDeduplicatesAutoRoutedModels(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{
+		routes: []CompositeModelRoute{
+			{ID: 1, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+			{ID: 2, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformKimi, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+			{ID: 3, GroupID: 7, PublicModel: "openai/gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+			{ID: 4, GroupID: 7, PublicModel: "kimi/gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformKimi, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+		},
+	})
+
+	models, err := resolver.ListExactPublicModels(context.Background(), 7, CompositeRouteEndpointResponses, true)
+	require.NoError(t, err)
+	require.Equal(t, []string{"gpt-5", "openai/gpt-5", "kimi/gpt-5"}, models)
+}
+
 // Scenario: 唯一平台的精确别名可路由
 func TestCompositeRouteResolverUsesAccountModelOwnershipForUnprefixedAlias(t *testing.T) {
 	resolver := NewCompositeRouteResolver(nil)

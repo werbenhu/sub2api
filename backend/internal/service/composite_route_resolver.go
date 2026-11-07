@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
@@ -36,6 +38,9 @@ func (d CompositeRouteDecision) AmbiguousMessage() string {
 type CompositeRouteResolver struct {
 	repo                   CompositeModelRouteRepository
 	modelOwnershipResolver CompositeModelOwnershipResolver
+	// roundRobinCounters keeps the cursor for equal-priority routes. A resolver
+	// is shared by the HTTP server, so the cursor must be safe across requests.
+	roundRobinCounters sync.Map // map[string]*atomic.Uint64
 }
 
 func NewCompositeRouteResolver(repo CompositeModelRouteRepository) *CompositeRouteResolver {
@@ -58,10 +63,19 @@ func (r *CompositeRouteResolver) ListExactPublicModels(ctx context.Context, grou
 		return nil, err
 	}
 	models := make([]string, 0, len(routes))
+	seen := make(map[string]struct{}, len(routes))
 	for _, route := range routes {
 		if route.Enabled && route.MatchType == CompositeRouteMatchExact &&
 			(endpoint == "" || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny || normalizeCompositeRouteEndpoint(route.Endpoint) == endpoint) {
 			if model := strings.TrimSpace(route.PublicModel); model != "" {
+				// A plain model ID represents an automatically routed model. Keep
+				// it visible once even when several providers expose it. Explicit
+				// provider-prefixed IDs (for example openai/gpt-5 and kimi/gpt-5)
+				// remain separate because their IDs are different.
+				if _, ok := seen[model]; ok {
+					continue
+				}
+				seen[model] = struct{}{}
 				models = append(models, model)
 			}
 		}
@@ -112,7 +126,7 @@ func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, mod
 		if err != nil {
 			return decision, fmt.Errorf("list composite routes: %w", err)
 		}
-		if route, ok := matchCompositeRoute(routes, model, endpoint); ok {
+		if route, ok := r.selectCompositeRoute(routes, groupID, model, endpoint); ok {
 			upstreamModel := strings.TrimSpace(route.UpstreamModel)
 			if upstreamModel == "" {
 				upstreamModel = model
@@ -180,17 +194,62 @@ func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, mod
 }
 
 func matchCompositeRoute(routes []CompositeModelRoute, model, endpoint string) (CompositeModelRoute, bool) {
-	if len(routes) == 0 {
+	candidates := compositeRouteCandidates(routes, model, endpoint)
+	if len(candidates) == 0 {
 		return CompositeModelRoute{}, false
 	}
+	return candidates[0].route, true
+}
 
-	type candidate struct {
-		route          CompositeModelRoute
-		matchStrength  int
-		endpointWeight int
-		prefixLen      int
+// selectCompositeRoute applies the same deterministic match precedence as
+// matchCompositeRoute, then round-robins routes that are equally specific and
+// have the same priority. This lets one public model fan out to multiple
+// providers while preserving explicit priority ordering.
+func (r *CompositeRouteResolver) selectCompositeRoute(routes []CompositeModelRoute, groupID int64, model, endpoint string) (CompositeModelRoute, bool) {
+	candidates := compositeRouteCandidates(routes, model, endpoint)
+	if len(candidates) == 0 {
+		return CompositeModelRoute{}, false
 	}
-	candidates := make([]candidate, 0, len(routes))
+	if len(candidates) == 1 || r == nil {
+		return candidates[0].route, true
+	}
+
+	best := candidates[0]
+	eligible := candidates[:1]
+	for _, candidate := range candidates[1:] {
+		if candidate.matchStrength != best.matchStrength ||
+			candidate.endpointWeight != best.endpointWeight ||
+			candidate.prefixLen != best.prefixLen ||
+			candidate.route.Priority != best.route.Priority {
+			break
+		}
+		eligible = append(eligible, candidate)
+	}
+	if len(eligible) == 1 {
+		return eligible[0].route, true
+	}
+
+	key := fmt.Sprintf("%d|%s|%s|%d|%d|%d|%d", groupID, model, endpoint,
+		best.matchStrength, best.endpointWeight, best.prefixLen, best.route.Priority)
+	cursor := &atomic.Uint64{}
+	actual, _ := r.roundRobinCounters.LoadOrStore(key, cursor)
+	index := actual.(*atomic.Uint64).Add(1) - 1
+	return eligible[index%uint64(len(eligible))].route, true
+}
+
+type compositeRouteCandidate struct {
+	route          CompositeModelRoute
+	matchStrength  int
+	endpointWeight int
+	prefixLen      int
+}
+
+func compositeRouteCandidates(routes []CompositeModelRoute, model, endpoint string) []compositeRouteCandidate {
+	if len(routes) == 0 {
+		return nil
+	}
+
+	candidates := make([]compositeRouteCandidate, 0, len(routes))
 	for _, route := range routes {
 		route.Endpoint = normalizeCompositeRouteEndpoint(route.Endpoint)
 		if route.Endpoint != endpoint && route.Endpoint != CompositeRouteEndpointAny {
@@ -222,7 +281,7 @@ func matchCompositeRoute(routes []CompositeModelRoute, model, endpoint string) (
 		if route.Endpoint == endpoint {
 			endpointWeight = 1
 		}
-		candidates = append(candidates, candidate{
+		candidates = append(candidates, compositeRouteCandidate{
 			route:          route,
 			matchStrength:  matchStrength,
 			endpointWeight: endpointWeight,
@@ -249,5 +308,5 @@ func matchCompositeRoute(routes []CompositeModelRoute, model, endpoint string) (
 		}
 		return a.route.ID < b.route.ID
 	})
-	return candidates[0].route, true
+	return candidates
 }

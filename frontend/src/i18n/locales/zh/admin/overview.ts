@@ -1187,6 +1187,7 @@ export default {
         target: '目标',
         scope: '范围',
         priority: '优先级',
+        publicModelHint: '填写 gpt-5 这类普通模型名时，同名路由会按优先级和轮询自动选择；填写 openai/gpt-5、kimi/gpt-5 这类供应商前缀时，会作为独立模型显示。',
         addRoute: '添加路由',
         editRoute: '编辑路由',
         matchType: '匹配方式',

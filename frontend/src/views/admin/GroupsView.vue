@@ -4077,8 +4077,11 @@
                 type="text"
                 class="input"
                 required
-                placeholder="openrouter/gpt-5"
+                placeholder="gpt-5"
               />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.groups.compositeRoutes.publicModelHint") }}
+              </p>
             </div>
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
