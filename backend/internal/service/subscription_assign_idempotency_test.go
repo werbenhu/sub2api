@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -273,6 +274,79 @@ func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscri
 	}
 	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
 	return nil
+}
+
+type subscriptionGroupAccessRepoStub struct {
+	calls [][2]int64
+	err   error
+}
+
+func (s *subscriptionGroupAccessRepoStub) AddGroupToAllowedGroups(_ context.Context, userID, groupID int64) error {
+	s.calls = append(s.calls, [2]int64{userID, groupID})
+	return s.err
+}
+
+type subscriptionAuthCacheInvalidatorStub struct {
+	userIDs []int64
+}
+
+func (s *subscriptionAuthCacheInvalidatorStub) InvalidateAuthCacheByKey(context.Context, string) {
+}
+func (s *subscriptionAuthCacheInvalidatorStub) InvalidateAuthCacheByGroupID(context.Context, int64) {
+}
+func (s *subscriptionAuthCacheInvalidatorStub) InvalidateAuthCacheByUserID(_ context.Context, userID int64) {
+	s.userIDs = append(s.userIDs, userID)
+}
+
+func TestAssignSubscriptionGrantsExclusiveGroupAccess(t *testing.T) {
+	group := &Group{ID: 7, IsExclusive: true, SubscriptionType: SubscriptionTypeSubscription}
+	subRepo := newSubscriptionUserSubRepoStub()
+	accessRepo := &subscriptionGroupAccessRepoStub{}
+	authCache := &subscriptionAuthCacheInvalidatorStub{}
+	svc := NewSubscriptionService(&subscriptionGroupRepoStub{group: group}, subRepo, nil, nil, nil)
+	svc.groupAccessRepo = accessRepo
+	svc.authCacheInvalidator = authCache
+	input := &AssignSubscriptionInput{UserID: 1001, GroupID: 7, ValidityDays: 30}
+
+	created, err := svc.AssignSubscription(context.Background(), input)
+	require.NoError(t, err)
+	require.False(t, created.ExpiresAt.IsZero())
+	reused, err := svc.AssignSubscription(context.Background(), input)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, reused.ID)
+	require.Equal(t, [][2]int64{{1001, 7}, {1001, 7}}, accessRepo.calls)
+
+	now := time.Now()
+	term := UserSubscription{ID: 8, UserID: 1001, GroupID: 7, StartsAt: now, ExpiresAt: now.AddDate(0, 0, 30), Status: SubscriptionStatusActive}
+	renewalRepo := &lockingRenewalRepo{stale: term, current: term}
+	svc = NewSubscriptionService(&subscriptionGroupRepoStub{group: group}, renewalRepo, nil, nil, nil)
+	svc.groupAccessRepo = accessRepo
+	svc.authCacheInvalidator = authCache
+	svc.now = func() time.Time { return now }
+	_, extended, err := svc.AssignOrExtendSubscription(context.Background(), input)
+	require.NoError(t, err)
+	require.True(t, extended)
+	require.Equal(t, [][2]int64{{1001, 7}, {1001, 7}, {1001, 7}}, accessRepo.calls)
+	require.Equal(t, []int64{1001, 1001, 1001}, authCache.userIDs)
+
+	group.IsExclusive = false
+	svc = NewSubscriptionService(&subscriptionGroupRepoStub{group: group}, subRepo, nil, nil, nil)
+	svc.groupAccessRepo = accessRepo
+	svc.authCacheInvalidator = authCache
+	_, err = svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{UserID: 1002, GroupID: 7, ValidityDays: 30})
+	require.NoError(t, err)
+	require.Len(t, accessRepo.calls, 3, "普通分组无需写入专属授权")
+}
+
+func TestAssignSubscriptionPropagatesExclusiveGroupAccessFailure(t *testing.T) {
+	group := &Group{ID: 7, IsExclusive: true, SubscriptionType: SubscriptionTypeSubscription}
+	grantErr := errors.New("grant failed")
+	accessRepo := &subscriptionGroupAccessRepoStub{err: grantErr}
+	svc := NewSubscriptionService(&subscriptionGroupRepoStub{group: group}, newSubscriptionUserSubRepoStub(), nil, nil, nil)
+	svc.groupAccessRepo = accessRepo
+
+	_, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{UserID: 1001, GroupID: 7, ValidityDays: 30})
+	require.ErrorIs(t, err, grantErr)
 }
 
 func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {

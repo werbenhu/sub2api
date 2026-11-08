@@ -42,12 +42,18 @@ var (
 	ErrAdjustWouldExpire           = infraerrors.BadRequest("ADJUST_WOULD_EXPIRE", "adjustment would result in expired subscription (remaining days must be > 0)")
 )
 
+type SubscriptionGroupAccessRepository interface {
+	AddGroupToAllowedGroups(ctx context.Context, userID, groupID int64) error
+}
+
 // SubscriptionService 订阅服务
 type SubscriptionService struct {
-	groupRepo           GroupRepository
-	userSubRepo         UserSubscriptionRepository
-	billingCacheService *BillingCacheService
-	entClient           *dbent.Client
+	groupRepo            GroupRepository
+	userSubRepo          UserSubscriptionRepository
+	groupAccessRepo      SubscriptionGroupAccessRepository
+	authCacheInvalidator APIKeyAuthCacheInvalidator
+	billingCacheService  *BillingCacheService
+	entClient            *dbent.Client
 
 	// L1 缓存：加速中间件热路径的订阅查询
 	subCacheL1     *ristretto.Cache
@@ -72,6 +78,26 @@ func NewSubscriptionService(groupRepo GroupRepository, userSubRepo UserSubscript
 	svc.initMaintenanceQueue(cfg)
 	svc.StartSubCacheInvalidationSubscriber(context.Background())
 	return svc
+}
+
+func ProvideSubscriptionService(groupRepo GroupRepository, userSubRepo UserSubscriptionRepository, userRepo UserRepository, billingCacheService *BillingCacheService, entClient *dbent.Client, cfg *config.Config, authCacheInvalidator APIKeyAuthCacheInvalidator) *SubscriptionService {
+	svc := NewSubscriptionService(groupRepo, userSubRepo, billingCacheService, entClient, cfg)
+	svc.groupAccessRepo = userRepo
+	svc.authCacheInvalidator = authCacheInvalidator
+	return svc
+}
+
+func (s *SubscriptionService) ensureSubscriptionGroupAccess(ctx context.Context, group *Group, userID int64) error {
+	if group == nil || !group.IsExclusive || s.groupAccessRepo == nil {
+		return nil
+	}
+	if err := s.groupAccessRepo.AddGroupToAllowedGroups(ctx, userID, group.ID); err != nil {
+		return fmt.Errorf("grant subscription group access: %w", err)
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(context.WithoutCancel(ctx), userID)
+	}
+	return nil
 }
 
 func (s *SubscriptionService) initMaintenanceQueue(cfg *config.Config) {
@@ -248,6 +274,9 @@ func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, in
 		if err := s.updateExistingSubscriptionTerm(ctx, existingSub.ID, validityDays, input.Notes, false); err != nil {
 			return nil, false, err
 		}
+		if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
+			return nil, false, err
+		}
 
 		// 失效订阅缓存
 		s.maybeInvalidateAssignmentCaches(input.UserID, input.GroupID, deferCacheInvalidation)
@@ -260,6 +289,9 @@ func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, in
 	// 没有订阅，创建新订阅
 	sub, err := s.createSubscription(ctx, input)
 	if err != nil {
+		return nil, false, err
+	}
+	if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
 		return nil, false, err
 	}
 
@@ -530,6 +562,9 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 			if err := s.updateExistingSubscriptionTerm(ctx, sub.ID, validityDays, input.Notes, true); err != nil {
 				return nil, false, err
 			}
+			if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
+				return nil, false, err
+			}
 			s.maybeInvalidateAssignmentCaches(input.UserID, input.GroupID, false)
 			renewed, getErr := s.userSubRepo.GetByID(ctx, sub.ID)
 			return renewed, true, getErr
@@ -539,11 +574,17 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 				"conflict_reason": conflictReason,
 			})
 		}
+		if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
+			return nil, false, err
+		}
 		return sub, true, nil
 	}
 
 	sub, err := s.createSubscription(ctx, input)
 	if err != nil {
+		return nil, false, err
+	}
+	if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
 		return nil, false, err
 	}
 
