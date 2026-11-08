@@ -159,6 +159,9 @@
             >
               <Icon name="questionCircle" size="md" />
             </button>
+            <button @click="showPlansModal = true" class="btn btn-secondary">
+              {{ t('admin.subscriptions.planManagement') }}
+            </button>
             <button @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
@@ -487,6 +490,8 @@
       @completed="handleBulkCompleted"
     />
 
+    <SubscriptionPlansModal :show="showPlansModal" :groups="groups" @close="showPlansModal = false" @changed="loadPlans" />
+
     <!-- Assign Subscription Modal -->
     <BaseDialog
       :show="showAssignModal"
@@ -576,40 +581,14 @@
           </div>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.subscriptions.form.group') }}</label>
+          <label class="input-label">{{ t('admin.subscriptions.plan') }}</label>
           <Select
-            v-model="assignForm.group_id"
+            v-model="assignForm.plan_id"
             :disabled="submitting"
-            :options="subscriptionGroupOptions"
-            :placeholder="t('admin.subscriptions.selectGroup')"
-          >
-            <template #selected="{ option }">
-              <GroupBadge
-                v-if="option"
-                :name="(option as unknown as GroupOption).label"
-                :platform="(option as unknown as GroupOption).platform"
-                :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
-              />
-              <span v-else class="text-gray-400">{{ t('admin.subscriptions.selectGroup') }}</span>
-            </template>
-            <template #option="{ option, selected }">
-              <GroupOptionItem
-                :name="(option as unknown as GroupOption).label"
-                :platform="(option as unknown as GroupOption).platform"
-                :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
-                :description="(option as unknown as GroupOption).description"
-                :selected="selected"
-              />
-            </template>
-          </Select>
-          <p class="input-hint">{{ t('admin.subscriptions.groupHint') }}</p>
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.subscriptions.form.validityDays') }}</label>
-          <input v-model.number="assignForm.validity_days" type="number" min="1" max="36500" step="1" :disabled="submitting" class="input" />
-          <p class="input-hint">{{ t('admin.subscriptions.validityHint') }}</p>
+            :options="planOptions"
+            :placeholder="t('admin.subscriptions.selectPlan')"
+          />
+          <p class="input-hint">{{ t('admin.subscriptions.planHint') }}</p>
         </div>
         <div v-if="batchAssignResult" class="space-y-2 text-sm" role="status" data-test="batch-assign-result">
           <p>{{ t('admin.subscriptions.batchAssign.result', { success: batchAssignResult.success_count, failed: batchAssignResult.failed_count }) }}</p>
@@ -844,11 +823,12 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
+import type { AdminUser, UserSubscription, Group } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
-import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult } from '@/api/admin/subscriptions'
+import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult, SubscriptionPlan } from '@/api/admin/subscriptions'
 import { useTableSelection } from '@/composables/useTableSelection'
 import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
+import SubscriptionPlansModal from '@/components/admin/subscription/SubscriptionPlansModal.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -861,7 +841,6 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
-import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
 import {
   getRemainingDurationParts,
@@ -873,15 +852,6 @@ import { GROUP_PLATFORM_OPTIONS } from '@/constants/platforms'
 
 const { t } = useI18n()
 const appStore = useAppStore()
-
-interface GroupOption {
-  value: number
-  label: string
-  description: string | null
-  platform: GroupPlatform
-  subscriptionType: SubscriptionType
-  rate: number
-}
 
 // Guide modal state
 const showGuideModal = ref(false)
@@ -1093,10 +1063,23 @@ const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
 const restoringSubscription = ref<UserSubscription | null>(null)
 
+const plans = ref<SubscriptionPlan[]>([])
+const showPlansModal = ref(false)
+const planOptions = computed(() => plans.value.map(plan => ({
+  value: plan.id,
+  label: `${plan.name} · ${plan.validity_days} ${t('admin.subscriptions.days')}`
+})))
+const loadPlans = async () => {
+  try {
+    plans.value = await adminAPI.subscriptions.listPlans()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.subscriptions.failedToLoad'))
+  }
+}
+
 const assignForm = reactive({
   user_id: null as number | null,
-  group_id: null as number | null,
-  validity_days: 30
+  plan_id: null as number | null
 })
 
 const extendForm = reactive({
@@ -1113,20 +1096,6 @@ const platformFilterOptions = computed(() => [
   { value: '', label: t('admin.subscriptions.allPlatforms') },
   ...GROUP_PLATFORM_OPTIONS
 ])
-
-// Group options for assign (only subscription type groups)
-const subscriptionGroupOptions = computed(() =>
-  groups.value
-    .filter((g) => g.subscription_type === 'subscription' && g.status === 'active')
-    .map((g) => ({
-      value: g.id,
-      label: g.name,
-      description: g.description,
-      platform: g.platform,
-      subscriptionType: g.subscription_type,
-      rate: g.rate_multiplier
-    }))
-)
 
 const applyFilters = () => {
   clearSelection()
@@ -1331,8 +1300,7 @@ const closeAssignModal = () => {
   assignUsers.value = []
   batchAssignResult.value = null
   assignForm.user_id = null
-  assignForm.group_id = null
-  assignForm.validity_days = 30
+  assignForm.plan_id = null
   // Clear user search state
   selectedUser.value = null
   userSearchKeyword.value = ''
@@ -1346,22 +1314,17 @@ const handleAssignSubscription = async () => {
     appStore.showError(t('admin.subscriptions.pleaseSelectUser'))
     return
   }
-  if (!assignForm.group_id) {
-    appStore.showError(t('admin.subscriptions.pleaseSelectGroup'))
-    return
-  }
-  if (!Number.isInteger(assignForm.validity_days) || assignForm.validity_days < 1 || assignForm.validity_days > 36500) {
-    appStore.showError(t('admin.subscriptions.validityDaysRequired'))
+  if (!assignForm.plan_id) {
+    appStore.showError(t('admin.subscriptions.pleaseSelectPlan'))
     return
   }
 
   submitting.value = true
   try {
     if (batchAssignEnabled.value) {
-      batchAssignResult.value = await adminAPI.subscriptions.bulkAssign({
+      batchAssignResult.value = await adminAPI.subscriptions.bulkAssignPlan({
         user_ids: assignUsers.value.map((user) => user.id),
-        group_id: assignForm.group_id,
-        validity_days: assignForm.validity_days
+        plan_id: assignForm.plan_id!
       })
       const result = batchAssignResult.value
       const successIds = new Set(result.subscriptions.map((subscription) => subscription.user_id))
@@ -1372,10 +1335,9 @@ const handleAssignSubscription = async () => {
       }
       return
     }
-    await adminAPI.subscriptions.assign({
+    await adminAPI.subscriptions.assignPlan({
       user_id: assignForm.user_id!,
-      group_id: assignForm.group_id,
-      validity_days: assignForm.validity_days
+      plan_id: assignForm.plan_id!
     })
     appStore.showSuccess(t('admin.subscriptions.subscriptionAssigned'))
     submitting.value = false
@@ -1611,6 +1573,7 @@ onMounted(() => {
   loadSavedColumns()
   loadSubscriptions()
   loadGroups()
+  loadPlans()
   document.addEventListener('click', handleClickOutside)
 })
 

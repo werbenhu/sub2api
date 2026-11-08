@@ -80,35 +80,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/auth/dingtalk/callback',
-    name: 'DingTalkOAuthCallback',
-    component: () => import('@/views/auth/DingTalkCallbackView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'DingTalk OAuth Callback',
-      titleKey: 'auth.dingtalkCallbackPageTitle'
-    }
-  },
-  {
-    path: '/auth/dingtalk/email-completion',
-    name: 'dingtalk-email-completion',
-    component: () => import('@/views/auth/DingTalkEmailCompletionView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'DingTalk Email Completion'
-    }
-  },
-  {
-    path: '/auth/oidc/callback',
-    name: 'OIDCOAuthCallback',
-    component: () => import('@/views/auth/OidcCallbackView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'OIDC OAuth Callback',
-      titleKey: 'auth.oidcCallbackPageTitle'
-    }
-  },
-  {
     path: '/forgot-password',
     name: 'ForgotPassword',
     component: () => import('@/views/auth/ForgotPasswordView.vue'),
@@ -336,29 +307,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/channels/monitor',
-    name: 'AdminChannelMonitor',
-    component: () => import('@/views/admin/ChannelMonitorView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Channel Monitor',
-      titleKey: 'admin.channelMonitor.title',
-      descriptionKey: 'admin.channelMonitor.description'
-    }
-  },
-  {
-    path: '/monitor',
-    name: 'ChannelStatus',
-    component: () => import('@/views/user/ChannelStatusView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Channel Status',
-      titleKey: 'nav.channelStatus'
-    }
-  },
-  {
     path: '/admin/subscriptions',
     name: 'AdminSubscriptions',
     component: () => import('@/views/admin/SubscriptionsView.vue'),
@@ -494,12 +442,7 @@ const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
 const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/legal']
-const BACKEND_MODE_CALLBACK_PATHS = [
-  '/auth/callback',
-  '/auth/dingtalk/callback',
-  '/auth/dingtalk/email-completion',
-  '/auth/oidc/callback',
-]
+const BACKEND_MODE_CALLBACK_PATHS = ['/auth/callback']
 const BACKEND_MODE_PENDING_AUTH_PATHS = ['/register', '/email-verify']
 
 function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: boolean): boolean {

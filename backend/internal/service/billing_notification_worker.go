@@ -81,16 +81,12 @@ func (s *BalanceNotifyService) submitUsageNotifications(p *postUsageBillingParam
 	if s == nil || s.usageNotifications == nil || p == nil || p.Cost == nil {
 		return
 	}
-	balanceEnabled := !p.IsSubscriptionBill && p.Cost.ActualCost > 0 && s.canNotifyBalance(p.User)
 	quotaEnabled := p.Cost.TotalCost > 0 && p.Account != nil && p.Account.SupportsAccountQuota() && p.Account.HasAnyQuotaLimit()
-	if !balanceEnabled && !quotaEnabled {
+	if !quotaEnabled {
 		return
 	}
 	s.usageNotifications.submit(func(ctx context.Context) {
-		notifyBalanceLow(ctx, p, deps, result)
-		if ctx.Err() == nil {
-			notifyAccountQuota(ctx, p, deps, result)
-		}
+		notifyAccountQuota(ctx, p, deps, result)
 	})
 }
 

@@ -4,9 +4,9 @@ import { defineComponent } from 'vue'
 
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchUsageUsers, showError } = vi.hoisted(() => ({
+const { listSubscriptions, assignPlan, getAllGroups, listUsers, searchUsageUsers, showError } = vi.hoisted(() => ({
   listSubscriptions: vi.fn(),
-  assignSubscription: vi.fn(),
+  assignPlan: vi.fn(),
   showError: vi.fn(),
   getAllGroups: vi.fn(),
   listUsers: vi.fn(),
@@ -15,7 +15,7 @@ const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchUs
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    subscriptions: { list: listSubscriptions, assign: assignSubscription },
+    subscriptions: { list: listSubscriptions, assignPlan, listPlans: vi.fn().mockResolvedValue([{ id: 3, name: 'Team', validity_days: 30 }]) },
     groups: { getAll: getAllGroups },
     users: { list: listUsers },
     usage: { searchUsers: searchUsageUsers }
@@ -82,7 +82,7 @@ describe('admin subscription users', () => {
       total: 1,
       pages: 1
     })
-    assignSubscription.mockResolvedValue({})
+    assignPlan.mockResolvedValue({})
     getAllGroups.mockResolvedValue([])
     listUsers.mockResolvedValue({
       items: [{ id: 42, email: 'reader@example.com' }],
@@ -167,7 +167,7 @@ describe('admin subscription users', () => {
       await form.trigger('submit')
       await flushPromises()
 
-      expect(assignSubscription).not.toHaveBeenCalled()
+      expect(assignPlan).not.toHaveBeenCalled()
       expect(showError).toHaveBeenCalledWith('admin.subscriptions.pleaseSelectUser')
       expect(listUsers).toHaveBeenCalledTimes(1)
 
@@ -180,9 +180,9 @@ describe('admin subscription users', () => {
       await form.trigger('submit')
       await flushPromises()
 
-      expect(assignSubscription).toHaveBeenCalledTimes(1)
-      expect(assignSubscription).toHaveBeenCalledWith({
-        user_id: 84, group_id: 3, validity_days: 30
+      expect(assignPlan).toHaveBeenCalledTimes(1)
+      expect(assignPlan).toHaveBeenCalledWith({
+        user_id: 84, plan_id: 3
       })
     } finally {
       wrapper.unmount()

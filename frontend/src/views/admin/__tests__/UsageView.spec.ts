@@ -566,63 +566,6 @@ describe('admin UsageView request ID column visibility', () => {
   })
 })
 
-describe('admin UsageView handleUserClick', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    list.mockReset()
-    getStats.mockReset()
-    getSnapshotV2.mockReset()
-    getById.mockReset()
-
-    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
-    getStats.mockResolvedValue({
-      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
-      total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
-    })
-    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('opens user via include_deleted when clicking a usage row user', async () => {
-    getById.mockResolvedValue({ id: 2, email: 'd@test.com', deleted_at: '2026-05-28T00:00:00Z' })
-
-    const wrapper = mount(UsageView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          UsageStatsCards: true,
-          UsageFilters: UsageFiltersStub,
-          UsageTable: UsageTableStub,
-          UsageExportProgress: true,
-          UsageCleanupDialog: true,
-          UserBalanceHistoryModal: true,
-          AuditLogModal: true,
-          Pagination: true,
-          Select: true,
-          DateRangePicker: true,
-          Icon: true,
-          TokenUsageTrend: true,
-          ModelDistributionChart: true,
-          GroupDistributionChart: true,
-          EndpointDistributionChart: true,
-          UserTokenRanking: true,
-        },
-      },
-    })
-
-    vi.advanceTimersByTime(120)
-    await flushPromises()
-
-    await wrapper.find('[data-test="usage-table"] .user-click').trigger('click')
-    await flushPromises()
-
-    expect(getById).toHaveBeenCalledWith(2, true)
-  })
-})
-
 describe('admin UsageView errors tab filter forwarding', () => {
   beforeEach(() => {
     vi.useFakeTimers()

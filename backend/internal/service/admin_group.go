@@ -793,7 +793,22 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.I18n = i18n
 	}
 	if input.Platform != "" {
-		group.Platform = input.Platform
+		nextPlatform := NormalizeGroupPlatform(input.Platform)
+		if nextPlatform != group.Platform && nextPlatform != PlatformComposite && s.accountRepo != nil {
+			accounts, err := s.accountRepo.ListByGroup(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("list accounts for platform change: %w", err)
+			}
+			for _, account := range accounts {
+				if account.Platform != nextPlatform {
+					return nil, infraerrors.BadRequest(
+						"GROUP_PLATFORM_ACCOUNT_MISMATCH",
+						fmt.Sprintf("account %d uses platform %s; remove it before changing the group to %s", account.ID, account.Platform, nextPlatform),
+					)
+				}
+			}
+		}
+		group.Platform = nextPlatform
 	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier <= 0 {

@@ -33,8 +33,8 @@ func validatePlanRequired(name string, groupID int64, price float64, validityDay
 	if groupID <= 0 {
 		return infraerrors.BadRequest("PLAN_GROUP_REQUIRED", "group is required")
 	}
-	if price <= 0 {
-		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be > 0")
+	if price < 0 {
+		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be >= 0")
 	}
 	if validityDays <= 0 {
 		return infraerrors.BadRequest("PLAN_VALIDITY_REQUIRED", "validity days must be > 0")
@@ -56,8 +56,8 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 	if req.GroupID != nil && *req.GroupID <= 0 {
 		return infraerrors.BadRequest("PLAN_GROUP_REQUIRED", "group is required")
 	}
-	if req.Price != nil && *req.Price <= 0 {
-		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be > 0")
+	if req.Price != nil && *req.Price < 0 {
+		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be >= 0")
 	}
 	if req.ValidityDays != nil && *req.ValidityDays <= 0 {
 		return infraerrors.BadRequest("PLAN_VALIDITY_REQUIRED", "validity days must be > 0")
@@ -136,8 +136,22 @@ func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.S
 	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
 }
 
+func (s *PaymentConfigService) validatePlanGroup(ctx context.Context, groupID int64) error {
+	active, err := s.entClient.Group.Query().Where(group.IDEQ(groupID), group.StatusEQ(StatusActive)).Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("validate plan group: %w", err)
+	}
+	if !active {
+		return infraerrors.BadRequest("PLAN_GROUP_INVALID", "group must exist and be active")
+	}
+	return nil
+}
+
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
+		return nil, err
+	}
+	if err := s.validatePlanGroup(ctx, req.GroupID); err != nil {
 		return nil, err
 	}
 	currency, err := normalizePlanCurrency(req.Currency)
@@ -161,6 +175,11 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanPatch(req); err != nil {
 		return nil, err
+	}
+	if req.GroupID != nil {
+		if err := s.validatePlanGroup(ctx, *req.GroupID); err != nil {
+			return nil, err
+		}
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {
@@ -207,14 +226,6 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {
-	count, err := s.countPendingOrdersByPlan(ctx, id)
-	if err != nil {
-		return fmt.Errorf("check pending orders: %w", err)
-	}
-	if count > 0 {
-		return infraerrors.Conflict("PENDING_ORDERS",
-			fmt.Sprintf("this plan has %d in-progress orders and cannot be deleted — wait for orders to complete first", count))
-	}
 	return s.entClient.SubscriptionPlan.DeleteOneID(id).Exec(ctx)
 }
 

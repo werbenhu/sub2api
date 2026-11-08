@@ -20,8 +20,6 @@ import scheduledTestsAPI from './scheduledTests'
 import backupAPI from './backup'
 import tlsFingerprintProfileAPI from './tlsFingerprintProfile'
 import channelsAPI from './channels'
-import channelMonitorAPI from './channelMonitor'
-import channelMonitorTemplateAPI from './channelMonitorTemplate'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import auditAPI from './audit'
@@ -50,8 +48,6 @@ export const adminAPI = {
   backup: backupAPI,
   tlsFingerprintProfiles: tlsFingerprintProfileAPI,
   channels: channelsAPI,
-  channelMonitor: channelMonitorAPI,
-  channelMonitorTemplate: channelMonitorTemplateAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   audit: auditAPI,
@@ -81,8 +77,6 @@ export {
   backupAPI,
   tlsFingerprintProfileAPI,
   channelsAPI,
-  channelMonitorAPI,
-  channelMonitorTemplateAPI,
   riskControlAPI,
   adminComplianceAPI,
   auditAPI,
@@ -92,7 +86,6 @@ export {
 export default adminAPI
 
 export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
-export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'

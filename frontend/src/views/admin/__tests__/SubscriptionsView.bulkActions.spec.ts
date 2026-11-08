@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { list, bulkAction, bulkAssign, listUsers, showError } = vi.hoisted(() => ({
-  list: vi.fn(), bulkAction: vi.fn(), bulkAssign: vi.fn(), listUsers: vi.fn(), showError: vi.fn()
+const { list, bulkAction, bulkAssignPlan, listUsers, showError } = vi.hoisted(() => ({
+  list: vi.fn(), bulkAction: vi.fn(), bulkAssignPlan: vi.fn(), listUsers: vi.fn(), showError: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    subscriptions: { list, bulkAction, bulkAssign },
+    subscriptions: { list, bulkAction, bulkAssignPlan, listPlans: vi.fn().mockResolvedValue([{ id: 7, name: 'Team', validity_days: 30 }]) },
     groups: { getAll: vi.fn().mockResolvedValue([]) },
     users: { list: listUsers }
   }
@@ -124,20 +124,20 @@ describe('subscription bulk operations', () => {
     expect(form.get('[data-test="assign-users"]').text()).toContain('user11@example.com')
     expect(form.get('[data-test="assign-users"]').text()).toContain('user22@example.com')
     let resolveAssign!: (result: unknown) => void
-    bulkAssign.mockReturnValueOnce(new Promise(resolve => { resolveAssign = resolve }))
+    bulkAssignPlan.mockReturnValueOnce(new Promise(resolve => { resolveAssign = resolve }))
     await form.trigger('submit')
     await form.trigger('submit')
-    expect(bulkAssign).toHaveBeenCalledTimes(1)
-    expect(bulkAssign).toHaveBeenCalledWith({ user_ids: [11, 22], group_id: 7, validity_days: 30 })
+    expect(bulkAssignPlan).toHaveBeenCalledTimes(1)
+    expect(bulkAssignPlan).toHaveBeenCalledWith({ user_ids: [11, 22], plan_id: 7 })
     resolveAssign({ success_count: 1, failed_count: 1, subscriptions: [{ user_id: 11 }], errors: ['User 22: conflict'] })
     await flushPromises()
     expect(form.get('[data-test="assign-users"]').text()).not.toContain('user11@example.com')
     expect(form.get('[data-test="assign-users"]').text()).toContain('user22@example.com')
     expect(form.get('[data-test="batch-assign-result"]').text()).toContain('User 22: conflict')
-    bulkAssign.mockResolvedValueOnce({ success_count: 1, failed_count: 0, subscriptions: [{ user_id: 22 }], errors: [] })
+    bulkAssignPlan.mockResolvedValueOnce({ success_count: 1, failed_count: 0, subscriptions: [{ user_id: 22 }], errors: [] })
     await form.trigger('submit')
     await flushPromises()
-    expect(bulkAssign).toHaveBeenLastCalledWith({ user_ids: [22], group_id: 7, validity_days: 30 })
+    expect(bulkAssignPlan).toHaveBeenLastCalledWith({ user_ids: [22], plan_id: 7 })
     expect(form.find('[data-test="assign-users"]').exists()).toBe(false)
   })
 })

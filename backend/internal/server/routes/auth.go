@@ -110,64 +110,6 @@ func RegisterAuthRoutes(
 			}),
 			h.Auth.BindPendingOAuthLogin,
 		)
-		auth.GET("/oauth/oidc/start", h.Auth.OIDCOAuthStart)
-		auth.POST("/oauth/oidc/start", rateLimiter.LimitWithOptions("oauth-oidc-start", 20, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.OIDCOAuthStart)
-		auth.GET("/oauth/oidc/bind/start", func(c *gin.Context) {
-			query := c.Request.URL.Query()
-			query.Set("intent", "bind_current_user")
-			c.Request.URL.RawQuery = query.Encode()
-			h.Auth.OIDCOAuthStart(c)
-		})
-		auth.GET("/oauth/oidc/callback", h.Auth.OIDCOAuthCallback)
-		auth.POST("/oauth/oidc/complete-registration",
-			rateLimiter.LimitWithOptions("oauth-oidc-complete", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CompleteOIDCOAuthRegistration,
-		)
-		auth.POST("/oauth/oidc/bind-login",
-			rateLimiter.LimitWithOptions("oauth-oidc-bind-login", 20, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.BindOIDCOAuthLogin,
-		)
-		auth.POST("/oauth/oidc/create-account",
-			rateLimiter.LimitWithOptions("oauth-oidc-create-account", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CreateOIDCOAuthAccount,
-		)
-		auth.GET("/oauth/dingtalk/start", h.Auth.DingTalkOAuthStart)
-		auth.POST("/oauth/dingtalk/start", rateLimiter.LimitWithOptions("oauth-dingtalk-start", 20, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.DingTalkOAuthStart)
-		auth.GET("/oauth/dingtalk/bind/start", func(c *gin.Context) {
-			query := c.Request.URL.Query()
-			query.Set("intent", "bind_current_user")
-			c.Request.URL.RawQuery = query.Encode()
-			h.Auth.DingTalkOAuthStart(c)
-		})
-		auth.GET("/oauth/dingtalk/callback", h.Auth.DingTalkOAuthCallback)
-		auth.POST("/oauth/dingtalk/complete-registration",
-			rateLimiter.LimitWithOptions("oauth-dingtalk-complete", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CompleteDingTalkOAuthRegistration,
-		)
-		auth.POST("/oauth/dingtalk/bind-login",
-			rateLimiter.LimitWithOptions("oauth-dingtalk-bind-login", 20, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.BindDingTalkOAuthLogin,
-		)
-		auth.POST("/oauth/dingtalk/create-account",
-			rateLimiter.LimitWithOptions("oauth-dingtalk-create-account", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CreateDingTalkOAuthAccount,
-		)
 	}
 
 	// 公开设置（无需认证）：每次请求都会查询 DB，按客户端 IP 兜底限流，

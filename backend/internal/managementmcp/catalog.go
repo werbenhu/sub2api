@@ -106,11 +106,6 @@ func ToolCatalog() []ToolSpec {
 		}), nil),
 		catalogTool("admin_get_user", "Get a platform user's profile, balance and limits by ID. Existing API key secrets are omitted.", "GET", "/admin/users/:id", nil, nil),
 		catalogTool("admin_update_user", "Update a user's display name, notes, limits, status or group access. Does not change passwords, roles or identity bindings. Returns the updated user.", "PUT", "/admin/users/:id", nil, userUpdate),
-		catalogTool("admin_update_user_balance", "Set, add to or subtract from a user's balance in USD. This changes real billing credit; verify the user, amount and operation before calling. Returns the updated result.", "POST", "/admin/users/:id/balance", nil, catalogObject(map[string]any{
-			"balance":   map[string]any{"type": "number", "exclusiveMinimum": 0, "description": "Positive amount in USD"},
-			"operation": catalogEnum("How to apply the amount", "set", "add", "subtract"),
-			"notes":     catalogText("Reason for the balance adjustment", 2000),
-		}, "balance", "operation", "notes")),
 		catalogTool("admin_list_groups", "List platform groups, pricing multipliers and status with pagination.", "GET", "/admin/groups", catalogPage(map[string]any{
 			"search": catalogText("Search group name", 100), "platform": catalogText("Platform identifier", 64),
 			"status": catalogEnum("Group status", "active", "inactive"), "is_exclusive": catalogBool("Filter exclusive groups"),
@@ -178,7 +173,7 @@ func catalogTool(name, description, method, path string, query, body map[string]
 	// These existing routes require an idempotency key. Keep retries within
 	// their established coordinator rather than inventing MCP-side settlement.
 	switch name {
-	case "user_create_api_key", "admin_update_user_balance", "admin_extend_subscription":
+	case "user_create_api_key", "admin_extend_subscription":
 		properties["idempotency_key"] = map[string]any{
 			"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[!-~]+$",
 			"description": "Unique operation ID (for example a UUID). Reuse the same value and arguments when retrying this operation; use a new value for a new intended operation.",

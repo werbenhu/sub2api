@@ -869,6 +869,34 @@ func TestAdminService_UpdateGroup_DisablesBatchImageWhenPlatformChangesFromGemin
 	require.False(t, group.AllowBatchImageGeneration)
 }
 
+func TestAdminService_UpdateGroup_PlatformChangeChecksBoundAccounts(t *testing.T) {
+	t.Run("rejects mixed accounts when narrowing to one platform", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{getByID: &Group{ID: 1, Platform: PlatformComposite, Status: StatusActive}}
+		svc := &adminServiceImpl{
+			groupRepo: repo,
+			accountRepo: &accountRepoStubForGroupCodexManifest{accounts: []Account{
+				{ID: 1, Platform: PlatformOpenAI}, {ID: 2, Platform: PlatformKimi},
+			}},
+		}
+		_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Platform: PlatformOpenAI})
+		require.Equal(t, "GROUP_PLATFORM_ACCOUNT_MISMATCH", infraerrors.Reason(err))
+		require.Nil(t, repo.updated)
+	})
+
+	t.Run("allows widening and matching single platform", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{getByID: &Group{ID: 1, Platform: PlatformOpenAI, Status: StatusActive}}
+		accountRepo := &accountRepoStubForGroupCodexManifest{accounts: []Account{{ID: 1, Platform: PlatformOpenAI}}}
+		svc := &adminServiceImpl{groupRepo: repo, accountRepo: accountRepo}
+		updated, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Platform: PlatformComposite})
+		require.NoError(t, err)
+		require.Equal(t, PlatformComposite, updated.Platform)
+
+		updated, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Platform: PlatformOpenAI})
+		require.NoError(t, err)
+		require.Equal(t, PlatformOpenAI, updated.Platform)
+	})
+}
+
 func TestAdminService_UpdateGroup_ClearsDescriptionWhenEmptyString(t *testing.T) {
 	existingGroup := &Group{
 		ID:          1,

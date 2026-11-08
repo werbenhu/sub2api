@@ -229,6 +229,52 @@ export async function listByUser(
   return data
 }
 
+export interface SubscriptionPlan {
+  id: number
+  name: string
+  description: string
+  group_id: number
+  validity_days: number
+  sort_order: number
+}
+
+export interface SubscriptionPlanInput {
+  name: string
+  description: string
+  group_id: number | null
+  validity_days: number
+  sort_order: number
+}
+
+export async function listPlans(): Promise<SubscriptionPlan[]> {
+  const { data } = await apiClient.get<SubscriptionPlan[]>('/admin/subscriptions/plans')
+  return data
+}
+
+export async function createPlan(request: SubscriptionPlanInput): Promise<SubscriptionPlan> {
+  const { data } = await apiClient.post<SubscriptionPlan>('/admin/subscriptions/plans', request)
+  return data
+}
+
+export async function updatePlan(id: number, request: SubscriptionPlanInput): Promise<SubscriptionPlan> {
+  const { data } = await apiClient.put<SubscriptionPlan>(`/admin/subscriptions/plans/${id}`, request)
+  return data
+}
+
+export async function deletePlan(id: number): Promise<void> {
+  await apiClient.delete(`/admin/subscriptions/plans/${id}`)
+}
+
+export async function assignPlan(request: { user_id: number; plan_id: number; notes?: string }): Promise<UserSubscription> {
+  const { data } = await apiClient.post<UserSubscription>('/admin/subscriptions/assign-plan', request)
+  return data
+}
+
+export async function bulkAssignPlan(request: { user_ids: number[]; plan_id: number; notes?: string }): Promise<BulkAssignSubscriptionResult> {
+  const { data } = await apiClient.post<BulkAssignSubscriptionResult>('/admin/subscriptions/bulk-assign-plan', request)
+  return data
+}
+
 export const subscriptionsAPI = {
   list,
   getById,
@@ -241,7 +287,13 @@ export const subscriptionsAPI = {
   restore,
   resetQuota,
   listByGroup,
-  listByUser
+  listByUser,
+  listPlans,
+  createPlan,
+  updatePlan,
+  deletePlan,
+  assignPlan,
+  bulkAssignPlan
 }
 
 export default subscriptionsAPI

@@ -17,7 +17,6 @@ export { userGroupsAPI } from './groups'
 export * as batchImageAPI from './batchImage'
 export { totpAPI } from './totp'
 export { passkeyAPI, type PasskeyCredentialSummary } from './passkey'
-export { channelMonitorUserAPI } from './channelMonitor'
 
 // Admin APIs
 export { adminAPI } from './admin'

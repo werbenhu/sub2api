@@ -2151,10 +2151,10 @@
           <Select
             v-model="editForm.platform"
             :options="platformOptions"
-            :disabled="true"
             data-tour="group-form-platform"
+            @change="editForm.copy_accounts_from_group_ids = []"
           />
-          <p class="input-hint">{{ t("admin.groups.platformNotEditable") }}</p>
+          <p class="input-hint">{{ t("admin.groups.platformEditHint") }}</p>
         </div>
         <template v-if="!authStore.isSimpleMode">
         <!-- 从分组复制账号（编辑时） -->
@@ -4943,7 +4943,7 @@ const createForm = reactive({
   name: "",
   description: "",
   i18n: {} as GroupI18n,
-  platform: "anthropic" as GroupPlatform,
+  platform: (authStore.isSimpleMode ? "anthropic" : "composite") as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
   subscription_type: "subscription" as SubscriptionType,
@@ -5786,7 +5786,7 @@ const closeCreateModal = () => {
   createForm.name = "";
   createForm.description = "";
   createForm.i18n = {};
-  createForm.platform = "anthropic";
+  createForm.platform = authStore.isSimpleMode ? "anthropic" : "composite";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "subscription";

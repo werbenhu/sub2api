@@ -30,13 +30,20 @@ func toResponsePagination(p *pagination.PaginationResult) *response.PaginationRe
 // SubscriptionHandler handles admin subscription management
 type SubscriptionHandler struct {
 	subscriptionService *service.SubscriptionService
+	planService         subscriptionPlanService
 }
 
 // NewSubscriptionHandler creates a new admin subscription handler
-func NewSubscriptionHandler(subscriptionService *service.SubscriptionService) *SubscriptionHandler {
-	return &SubscriptionHandler{
-		subscriptionService: subscriptionService,
+func NewSubscriptionHandler(subscriptionService *service.SubscriptionService, planServices ...subscriptionPlanService) *SubscriptionHandler {
+	h := &SubscriptionHandler{subscriptionService: subscriptionService}
+	if len(planServices) > 0 {
+		h.planService = planServices[0]
 	}
+	return h
+}
+
+func ProvideSubscriptionHandler(subscriptionService *service.SubscriptionService, planService *service.PaymentConfigService) *SubscriptionHandler {
+	return NewSubscriptionHandler(subscriptionService, planService)
 }
 
 // AssignSubscriptionRequest represents assign subscription request

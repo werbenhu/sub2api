@@ -2,8 +2,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import LoginView from '../LoginView.vue'
 import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
-import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
-import DingTalkOAuthSection from '@/components/auth/DingTalkOAuthSection.vue'
 import OAuthCallbackView from '../OAuthCallbackView.vue'
 
 const { route, login, push, replace, exchangeCompletion } = vi.hoisted(() => ({
@@ -74,8 +72,6 @@ describe('MCP authorization through existing sign-in flows', () => {
   it.each([
     ['github', EmailOAuthButtons, { githubEnabled: true }],
     ['google', EmailOAuthButtons, { googleEnabled: true }],
-    ['oidc', OidcOAuthSection, {}],
-    ['dingtalk', DingTalkOAuthSection, {}],
   ] as const)('preserves the entire return path when starting %s sign-in', async (provider, component, props) => {
     const wrapper = mount(component, { props, global: { stubs: { Icon: true } } })
     mounted.push(wrapper)

@@ -45,32 +45,3 @@ func TestUsageNotificationsBoundWorkAndCancelOnStop(t *testing.T) {
 	require.Zero(t, queuedRan.Load(), "shutdown must not start queued settings reads or email deliveries")
 	require.False(t, w.submit(func(context.Context) { t.Error("stopped worker accepted work") }))
 }
-
-type notificationCancellationSettings struct {
-	SettingRepository
-	started chan context.Context
-}
-
-func (s *notificationCancellationSettings) GetMultiple(ctx context.Context, _ []string) (map[string]string, error) {
-	s.started <- ctx
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
-func TestBalanceNotifyStopCancelsSettingsReads(t *testing.T) {
-	settings := &notificationCancellationSettings{started: make(chan context.Context, 1)}
-	s := NewBalanceNotifyService(NewEmailService(settings, nil), settings, nil)
-	t.Cleanup(s.Stop)
-	s.submitUsageNotifications(&postUsageBillingParams{
-		Cost: &CostBreakdown{ActualCost: 1},
-		User: &User{ID: 1, BalanceNotifyEnabled: true},
-	}, &billingDeps{balanceNotifyService: s}, nil)
-	select {
-	case ctx := <-settings.started:
-		_, ok := ctx.Deadline()
-		require.True(t, ok)
-	case <-time.After(2 * time.Second):
-		t.Fatal("notification settings read did not start")
-	}
-	s.Stop()
-}

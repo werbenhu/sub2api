@@ -214,16 +214,10 @@ type BindableProvider = Exclude<UserAuthProvider, 'email'>
 const props = withDefaults(
   defineProps<{
     user: User | null
-    dingtalkEnabled?: boolean
-    oidcEnabled?: boolean
-    oidcProviderName?: string
     embedded?: boolean
     compact?: boolean
   }>(),
   {
-    dingtalkEnabled: false,
-    oidcEnabled: false,
-    oidcProviderName: 'OIDC',
     embedded: false,
     compact: false,
   }
@@ -239,7 +233,7 @@ const isSendingEmailCode = ref(false)
 const isBindingEmail = ref(false)
 const isEmailBindingFormDirty = ref(false)
 const isEmailFormExpanded = ref(!props.compact)
-const unbindingProvider = ref<BindableProvider | null>(null)
+const unbindingProvider = ref<UserAuthProvider | null>(null)
 const emailBindingForm = reactive({
   email: '',
   verifyCode: '',
@@ -361,16 +355,6 @@ function getDisplayableEmail(user: User | null | undefined): string {
   return email
 }
 
-function isProviderEnabledForBinding(provider: BindableProvider): boolean {
-  if (provider === 'dingtalk') {
-    return props.dingtalkEnabled
-  }
-  if (provider === 'oidc') {
-    return props.oidcEnabled
-  }
-  return false
-}
-
 const providerItems = computed(() => [
   {
     provider: 'email' as const,
@@ -380,47 +364,13 @@ const providerItems = computed(() => [
     canUnbind: false,
     details: getBindingDetails('email'),
   },
-  {
-    provider: 'dingtalk' as const,
-    label: t('profile.authBindings.providers.dingtalk'),
-    bound: getBindingStatus('dingtalk'),
-    canBind:
-      !getBindingStatus('dingtalk') &&
-      isProviderEnabledForBinding('dingtalk') &&
-      (getBindingDetails('dingtalk')?.can_bind ?? true),
-    canUnbind: Boolean(getBindingStatus('dingtalk') && getBindingDetails('dingtalk')?.can_unbind),
-    details: getBindingDetails('dingtalk'),
-  },
-  {
-    provider: 'oidc' as const,
-    label: t('profile.authBindings.providers.oidc', { providerName: props.oidcProviderName }),
-    bound: getBindingStatus('oidc'),
-    canBind:
-      !getBindingStatus('oidc') &&
-      isProviderEnabledForBinding('oidc') &&
-      (getBindingDetails('oidc')?.can_bind ?? true),
-    canUnbind: Boolean(getBindingStatus('oidc') && getBindingDetails('oidc')?.can_unbind),
-    details: getBindingDetails('oidc'),
-  },
 ])
 
-function providerInitial(provider: UserAuthProvider): string {
-  if (provider === 'dingtalk') {
-    return 'D'
-  }
-  if (provider === 'oidc') {
-    return 'O'
-  }
+function providerInitial(_provider: UserAuthProvider): string {
   return 'E'
 }
 
-function providerIconClass(provider: UserAuthProvider): string {
-  if (provider === 'dingtalk') {
-    return 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300'
-  }
-  if (provider === 'oidc') {
-    return 'bg-sky-100 text-sky-600 dark:bg-sky-900/20 dark:text-sky-300'
-  }
+function providerIconClass(_provider: UserAuthProvider): string {
   return 'bg-primary-100 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300'
 }
 

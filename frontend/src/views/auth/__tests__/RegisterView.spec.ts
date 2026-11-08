@@ -139,14 +139,10 @@ describe('RegisterView', () => {
     await flushPromises()
 
     expect(wrapper.get('#confirmPassword').classes()).not.toContain('input-error')
-    expect(verifyActionMock).toHaveBeenCalledOnce()
+    expect(verifyActionMock).not.toHaveBeenCalled()
     expect(registerMock).toHaveBeenCalledWith({
       email: 'user@example.com',
       password: 'secret-123',
-      turnstile_token: undefined,
-      tencent_captcha_ticket: 'ticket',
-      tencent_captcha_randstr: 'randstr',
-      promo_code: undefined,
       invitation_code: undefined
     })
     expect(pushMock).toHaveBeenCalledWith('/dashboard')
