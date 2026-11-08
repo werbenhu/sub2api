@@ -101,7 +101,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 		nil,
 		nil,
 	)
-	billingService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingService := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingService.Stop)
 	concurrencyService := service.NewConcurrencyService(nil)
 	handler := NewOpenAIGatewayHandler(
@@ -141,6 +141,7 @@ func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*
 		User: &service.User{ID: 100},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(0, 0))
 	return c, rec
 }
 

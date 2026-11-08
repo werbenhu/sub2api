@@ -238,7 +238,7 @@ func newGrokMediaSlotHandler(t *testing.T, oauth, mismatch bool, platforms ...st
 	groupID := int64(24)
 	require.NoError(t, gateway.BindGrokMediaVideoRequestAccount(context.Background(), &groupID, "task", 10, 20, 1))
 	bindings.writes = 0
-	billing := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billing := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 	t.Cleanup(billing.Stop)
 	handler := NewOpenAIGatewayHandler(gateway, concurrency, billing, service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg), nil, nil, nil, nil, cfg)
 	return handler, slots, bindings, upstream
@@ -262,6 +262,7 @@ func grokMediaSlotContext(ctx context.Context, generation bool) (*gin.Context, *
 	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{ID: 20, UserID: 10, GroupID: &groupID,
 		Group: &service.Group{ID: groupID, Platform: service.PlatformGrok, AllowImageGeneration: true}, User: &service.User{ID: 10}})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 10, Concurrency: 5})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(0, 0))
 	return c, w
 }
 
@@ -383,6 +384,7 @@ func TestGrokMediaVideoLookupOwnerIsolation(t *testing.T) {
 			switch other {
 			case "user":
 				c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 11, Concurrency: 5})
+				c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(0, 0))
 			case "api key":
 				key.ID = 21
 			case "group":

@@ -76,9 +76,10 @@ type BatchImageReferenceInput struct {
 }
 
 type BatchImageOwner struct {
-	UserID   int64
-	APIKeyID int64
-	GroupID  *int64
+	UserID         int64
+	APIKeyID       int64
+	GroupID        *int64
+	SubscriptionID int64
 }
 
 type BatchImagePublicService struct {
@@ -254,6 +255,7 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 		return nil, err
 	}
 	apiKeyID := owner.APIKeyID
+	subscriptionID := owner.SubscriptionID
 	accountID := account.ID
 	holdID := BatchImageHoldRequestID(batchID)
 	holdAmount := pricingSnapshot.HoldAmount
@@ -261,6 +263,7 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 		BatchID:                 batchID,
 		UserID:                  owner.UserID,
 		APIKeyID:                &apiKeyID,
+		SubscriptionID:          &subscriptionID,
 		AccountID:               &accountID,
 		Provider:                provider.Name(),
 		Model:                   normalized.Model,
@@ -287,12 +290,8 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 	if err != nil {
 		return nil, err
 	}
-	if err := reserveBatchImageBalanceHold(ctx, s.BillingRepo, job, requestHash); err != nil {
-		code := "BILLING_HOLD_FAILED"
-		if errors.Is(err, ErrBatchImageInsufficientBalance) {
-			code = "INSUFFICIENT_BALANCE"
-		}
-		_ = s.Repo.RecordBatchImageJobSubmitFailure(ctx, job.BatchID, code, sanitizeBatchImagePublicMessage(err.Error()), true)
+	if err := reserveBatchImageSubscription(ctx, s.BillingRepo, job, requestHash); err != nil {
+		_ = s.Repo.RecordBatchImageJobSubmitFailure(ctx, job.BatchID, "SUBSCRIPTION_INVALID", sanitizeBatchImagePublicMessage(err.Error()), true)
 		s.hidePreUpstreamSubmitFailure(ctx, owner, job)
 		return nil, err
 	}
@@ -402,7 +401,7 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 }
 
 func (s *BatchImagePublicService) releaseFailedSubmitHold(ctx context.Context, job *BatchImageJob, requestHash string) error {
-	if err := releaseBatchImageBalanceHold(ctx, s.BillingRepo, job, requestHash); err != nil {
+	if err := releaseBatchImageSubscription(ctx, s.BillingRepo, job, requestHash); err != nil {
 		_ = s.Repo.RecordBatchImageJobSubmitFailure(ctx, job.BatchID, "BILLING_RELEASE_FAILED", sanitizeBatchImagePublicMessage(err.Error()), true)
 		s.enqueueBillingRetry(ctx, job.BatchID)
 		return ErrBatchImageBillingHoldFailed
@@ -711,7 +710,7 @@ func (s *BatchImagePublicService) Cancel(ctx context.Context, owner BatchImageOw
 	}
 	if isBatchImageProcessorDoneStatus(job.Status) {
 		if job.Status == BatchImageJobStatusFailed || job.Status == BatchImageJobStatusCancelled {
-			if err := releaseBatchImageBalanceHold(ctx, s.BillingRepo, job, batchImageDerefString(job.RequestHash)); err != nil {
+			if err := releaseBatchImageSubscription(ctx, s.BillingRepo, job, batchImageDerefString(job.RequestHash)); err != nil {
 				s.enqueueBillingRetry(ctx, job.BatchID)
 				return nil, ErrBatchImageCancelFailed
 			}
@@ -757,7 +756,7 @@ func (s *BatchImagePublicService) Cancel(ctx context.Context, owner BatchImageOw
 	}); err != nil {
 		return nil, err
 	}
-	if err := releaseBatchImageBalanceHold(ctx, s.BillingRepo, job, batchImageDerefString(job.RequestHash)); err != nil {
+	if err := releaseBatchImageSubscription(ctx, s.BillingRepo, job, batchImageDerefString(job.RequestHash)); err != nil {
 		s.enqueueBillingRetry(ctx, job.BatchID)
 		return nil, ErrBatchImageCancelFailed
 	}

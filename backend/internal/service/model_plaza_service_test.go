@@ -582,3 +582,29 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	// 展示单价为标准时段价
 	require.InDelta(t, 0.28e-6, *m.Pricing.InputPrice, 1e-15)
 }
+
+func TestListPlazaGroupsGroupPricingUsesConcretePlatform(t *testing.T) {
+	openAIOverride := 4e-6
+	kimiOverride := 8e-6
+	ch := Channel{ID: 1, Name: "shared", Status: StatusActive, GroupIDs: []int64{10}, ModelPricing: []ChannelModelPricing{
+		{Platform: PlatformOpenAI, Models: []string{"shared-model"}},
+		{Platform: PlatformKimi, Models: []string{"shared-model"}},
+	}}
+	group := Group{ID: 10, Name: "multi", Platform: PlatformComposite, ModelPricing: []ChannelModelPricing{
+		{Platform: PlatformOpenAI, Models: []string{"shared-model"}, InputPrice: &openAIOverride},
+		{Platform: PlatformKimi, Models: []string{"shared-model"}, InputPrice: &kimiOverride},
+	}}
+
+	out, err := newPlazaService([]Channel{ch}, []Group{group}, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Len(t, out[0].Models, 2)
+	for _, model := range out[0].Models {
+		require.NotNil(t, model.Pricing)
+		if model.Platform == PlatformOpenAI {
+			require.InDelta(t, openAIOverride, *model.Pricing.InputPrice, 1e-12)
+		} else {
+			require.InDelta(t, kimiOverride, *model.Pricing.InputPrice, 1e-12)
+		}
+	}
+}

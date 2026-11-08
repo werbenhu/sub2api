@@ -48,6 +48,20 @@ func (_c *BatchImageJobCreate) SetNillableAPIKeyID(v *int64) *BatchImageJobCreat
 	return _c
 }
 
+// SetSubscriptionID sets the "subscription_id" field.
+func (_c *BatchImageJobCreate) SetSubscriptionID(v int64) *BatchImageJobCreate {
+	_c.mutation.SetSubscriptionID(v)
+	return _c
+}
+
+// SetNillableSubscriptionID sets the "subscription_id" field if the given value is not nil.
+func (_c *BatchImageJobCreate) SetNillableSubscriptionID(v *int64) *BatchImageJobCreate {
+	if v != nil {
+		_c.SetSubscriptionID(*v)
+	}
+	return _c
+}
+
 // SetAccountID sets the "account_id" field.
 func (_c *BatchImageJobCreate) SetAccountID(v int64) *BatchImageJobCreate {
 	_c.mutation.SetAccountID(v)
@@ -792,6 +806,10 @@ func (_c *BatchImageJobCreate) createSpec() (*BatchImageJob, *sqlgraph.CreateSpe
 		_spec.SetField(batchimagejob.FieldAPIKeyID, field.TypeInt64, value)
 		_node.APIKeyID = &value
 	}
+	if value, ok := _c.mutation.SubscriptionID(); ok {
+		_spec.SetField(batchimagejob.FieldSubscriptionID, field.TypeInt64, value)
+		_node.SubscriptionID = &value
+	}
 	if value, ok := _c.mutation.AccountID(); ok {
 		_spec.SetField(batchimagejob.FieldAccountID, field.TypeInt64, value)
 		_node.AccountID = &value
@@ -1031,6 +1049,30 @@ func (u *BatchImageJobUpsert) AddAPIKeyID(v int64) *BatchImageJobUpsert {
 // ClearAPIKeyID clears the value of the "api_key_id" field.
 func (u *BatchImageJobUpsert) ClearAPIKeyID() *BatchImageJobUpsert {
 	u.SetNull(batchimagejob.FieldAPIKeyID)
+	return u
+}
+
+// SetSubscriptionID sets the "subscription_id" field.
+func (u *BatchImageJobUpsert) SetSubscriptionID(v int64) *BatchImageJobUpsert {
+	u.Set(batchimagejob.FieldSubscriptionID, v)
+	return u
+}
+
+// UpdateSubscriptionID sets the "subscription_id" field to the value that was provided on create.
+func (u *BatchImageJobUpsert) UpdateSubscriptionID() *BatchImageJobUpsert {
+	u.SetExcluded(batchimagejob.FieldSubscriptionID)
+	return u
+}
+
+// AddSubscriptionID adds v to the "subscription_id" field.
+func (u *BatchImageJobUpsert) AddSubscriptionID(v int64) *BatchImageJobUpsert {
+	u.Add(batchimagejob.FieldSubscriptionID, v)
+	return u
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (u *BatchImageJobUpsert) ClearSubscriptionID() *BatchImageJobUpsert {
+	u.SetNull(batchimagejob.FieldSubscriptionID)
 	return u
 }
 
@@ -1758,6 +1800,34 @@ func (u *BatchImageJobUpsertOne) UpdateAPIKeyID() *BatchImageJobUpsertOne {
 func (u *BatchImageJobUpsertOne) ClearAPIKeyID() *BatchImageJobUpsertOne {
 	return u.Update(func(s *BatchImageJobUpsert) {
 		s.ClearAPIKeyID()
+	})
+}
+
+// SetSubscriptionID sets the "subscription_id" field.
+func (u *BatchImageJobUpsertOne) SetSubscriptionID(v int64) *BatchImageJobUpsertOne {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.SetSubscriptionID(v)
+	})
+}
+
+// AddSubscriptionID adds v to the "subscription_id" field.
+func (u *BatchImageJobUpsertOne) AddSubscriptionID(v int64) *BatchImageJobUpsertOne {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.AddSubscriptionID(v)
+	})
+}
+
+// UpdateSubscriptionID sets the "subscription_id" field to the value that was provided on create.
+func (u *BatchImageJobUpsertOne) UpdateSubscriptionID() *BatchImageJobUpsertOne {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.UpdateSubscriptionID()
+	})
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (u *BatchImageJobUpsertOne) ClearSubscriptionID() *BatchImageJobUpsertOne {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.ClearSubscriptionID()
 	})
 }
 
@@ -2756,6 +2826,34 @@ func (u *BatchImageJobUpsertBulk) UpdateAPIKeyID() *BatchImageJobUpsertBulk {
 func (u *BatchImageJobUpsertBulk) ClearAPIKeyID() *BatchImageJobUpsertBulk {
 	return u.Update(func(s *BatchImageJobUpsert) {
 		s.ClearAPIKeyID()
+	})
+}
+
+// SetSubscriptionID sets the "subscription_id" field.
+func (u *BatchImageJobUpsertBulk) SetSubscriptionID(v int64) *BatchImageJobUpsertBulk {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.SetSubscriptionID(v)
+	})
+}
+
+// AddSubscriptionID adds v to the "subscription_id" field.
+func (u *BatchImageJobUpsertBulk) AddSubscriptionID(v int64) *BatchImageJobUpsertBulk {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.AddSubscriptionID(v)
+	})
+}
+
+// UpdateSubscriptionID sets the "subscription_id" field to the value that was provided on create.
+func (u *BatchImageJobUpsertBulk) UpdateSubscriptionID() *BatchImageJobUpsertBulk {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.UpdateSubscriptionID()
+	})
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (u *BatchImageJobUpsertBulk) ClearSubscriptionID() *BatchImageJobUpsertBulk {
+	return u.Update(func(s *BatchImageJobUpsert) {
+		s.ClearSubscriptionID()
 	})
 }
 

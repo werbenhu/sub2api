@@ -329,7 +329,7 @@ func TestReserveFixedCharge_ConcurrentChargesAdmitOnlyWhatAPIKeyQuotaCovers(t *t
 		go func() {
 			defer wg.Done()
 			<-start
-			res, err := svc.ReserveFixedCharge(ctx, user, apiKey, nil, nil, 0.3)
+			res, err := svc.ReserveFixedCharge(ctx, user, apiKey, &service.Group{ID: 1}, &service.UserSubscription{ID: 1}, 0.3)
 			if err != nil {
 				if !errors.Is(err, service.ErrAPIKeyQuotaExhausted) {
 					t.Errorf("unexpected error: %v", err)

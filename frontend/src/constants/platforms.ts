@@ -24,6 +24,6 @@ watchSyncEffect(() => {
   CONCRETE_PLATFORM_OPTIONS.splice(0, CONCRETE_PLATFORM_OPTIONS.length, ...concrete)
   GROUP_PLATFORM_OPTIONS.splice(0, GROUP_PLATFORM_OPTIONS.length, ...concrete, {
     value: 'composite',
-    label: 'Composite'
+    label: 'Multi-platform'
   })
 })

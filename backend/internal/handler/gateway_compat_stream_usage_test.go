@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
@@ -84,7 +85,7 @@ func runCompatStreamUsageHandler(t *testing.T, endpoint, upstreamStream string, 
 		usageRepo:   &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 2)},
 		billingRepo: &compatStreamUsageBillingRepo{},
 	}
-	billingCache := service.NewBillingCacheService(newHandlerInflightCache(100), nil, nil, nil, nil, nil, cfg, nil)
+	billingCache := service.NewBillingCacheService(newHandlerInflightCache(100), nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingCache.Stop)
 
 	pr, pw := io.Pipe()
@@ -101,7 +102,7 @@ func runCompatStreamUsageHandler(t *testing.T, endpoint, upstreamStream string, 
 	}}
 	gw := service.NewGatewayService(
 		nil, &fakeGroupRepo{group: group}, run.usageRepo, run.billingRepo, nil, nil, nil, nil, cfg,
-		snapshot, nil, service.NewBillingService(cfg, nil), nil, nil, nil, run.upstream,
+		snapshot, nil, service.NewBillingService(cfg, nil), nil, billingCache, nil, run.upstream,
 		&service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	h := &GatewayHandler{
@@ -119,6 +120,7 @@ func runCompatStreamUsageHandler(t *testing.T, endpoint, upstreamStream string, 
 	apiKey := &service.APIKey{ID: 9302, UserID: 9303, GroupID: &groupID, Group: group, User: &service.User{ID: 9303, Balance: 100}}
 	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 9303})
+	c.Set(string(middleware.ContextKeySubscription), activeTestSubscription(0, 0))
 
 	if endpoint == "chat/completions" {
 		h.ChatCompletions(c)
@@ -172,7 +174,7 @@ func TestGatewayCompatibilityHandlers_StreamUsageRecordedOnceWithTerminalEvent(t
 				require.Len(t, run.billingRepo.commands, 1, "usage must be settled exactly once")
 				require.Equal(t, 12, run.billingRepo.commands[0].InputTokens)
 				require.Equal(t, tc.wantOutput, run.billingRepo.commands[0].OutputTokens)
-				require.Len(t, run.usageRepo.created, 1)
+				require.Eventually(t, func() bool { return len(run.usageRepo.created) == 1 }, time.Second, 10*time.Millisecond)
 			})
 		}
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -116,6 +117,25 @@ func normalizeCompositeRouteEndpoint(endpoint string) string {
 	default:
 		return CompositeRouteEndpointAny
 	}
+}
+
+func validateCompositeRouteEndpointPlatform(endpoint, platform string) error {
+	compatible := true
+	switch endpoint {
+	case CompositeRouteEndpointGemini:
+		compatible = platform == PlatformGemini || platform == PlatformAntigravity
+	case CompositeRouteEndpointEmbeddings:
+		compatible = platform == PlatformOpenAI
+	case CompositeRouteEndpointImages:
+		compatible = platform == PlatformOpenAI || platform == PlatformGrok
+	}
+	if !compatible {
+		return infraerrors.BadRequest(
+			"COMPOSITE_ROUTE_CONFIG_INVALID",
+			fmt.Sprintf("endpoint %q is not compatible with target platform %q", endpoint, platform),
+		)
+	}
+	return nil
 }
 
 func normalizeCompositeRouteMatchType(matchType string) string {

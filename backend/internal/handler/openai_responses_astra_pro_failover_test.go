@@ -95,6 +95,7 @@ func newAstraProFailoverContext(t *testing.T, body string) (*gin.Context, *httpt
 		User: &service.User{ID: 100},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(0, 0))
 	return c, rec
 }
 

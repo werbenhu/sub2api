@@ -56,7 +56,7 @@ func TestRecordUsage_ImageReasoningPricing(t *testing.T) {
 										RequestID: "image_reasoning_pricing", Model: model, Duration: time.Second,
 										ImageCount: 2, ImageSize: "1K", ReasoningEffort: forwardedEffort,
 									},
-									APIKey: apiKey, User: user, Account: account,
+									APIKey: apiKey, User: user, Account: account, Subscription: &UserSubscription{ID: 1},
 								}))
 							} else {
 								svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
@@ -66,7 +66,7 @@ func TestRecordUsage_ImageReasoningPricing(t *testing.T) {
 										RequestID: "image_reasoning_pricing", Model: model, Duration: time.Second,
 										ImageCount: 2, ImageSize: "1K", ReasoningEffort: forwardedEffort,
 									},
-									APIKey: apiKey, User: user, Account: account,
+									APIKey: apiKey, User: user, Account: account, Subscription: &UserSubscription{ID: 1},
 								}))
 							}
 							wantTotal := 0.5
@@ -80,7 +80,7 @@ func TestRecordUsage_ImageReasoningPricing(t *testing.T) {
 							require.NotNil(t, usageRepo.lastLog)
 							require.InDelta(t, wantTotal, usageRepo.lastLog.TotalCost, 1e-12)
 							require.InDelta(t, wantTotal*wantRate, usageRepo.lastLog.ActualCost, 1e-12)
-							require.InDelta(t, wantTotal*wantRate, userRepo.lastAmount, 1e-12)
+							require.InDelta(t, wantTotal*wantRate, subRepo.lastAmount, 1e-12)
 							require.Equal(t, forwardedEffort, usageRepo.lastLog.ReasoningEffort)
 							require.Equal(t, 2, usageRepo.lastLog.ImageCount)
 							require.Equal(t, string(mode), *usageRepo.lastLog.BillingMode)

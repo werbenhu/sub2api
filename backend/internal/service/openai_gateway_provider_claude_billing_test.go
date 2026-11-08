@@ -16,7 +16,8 @@ func TestOpenAIGatewayServiceRecordUsage_AggregatorClaudeUsesDefaultPricing(t *t
 			t.Run(platform+"/"+model, func(t *testing.T) {
 				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 				userRepo := &openAIRecordUsageUserRepoStub{}
-				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+				subRepo := &openAIRecordUsageSubRepoStub{}
+				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 				svc.resolver = NewModelPricingResolver(nil, svc.billingService)
 				group := &Group{ID: 1, Platform: platform, RateMultiplier: 1.1}
 				usage := OpenAIUsage{InputTokens: 1000, OutputTokens: 200}
@@ -32,8 +33,8 @@ func TestOpenAIGatewayServiceRecordUsage_AggregatorClaudeUsesDefaultPricing(t *t
 				require.Equal(t, usage.OutputTokens, usageRepo.lastLog.OutputTokens)
 				require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 				require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
-				require.Equal(t, 1, userRepo.deductCalls)
-				require.InDelta(t, expected.ActualCost, userRepo.lastAmount, 1e-12)
+				require.Zero(t, userRepo.deductCalls)
+				require.InDelta(t, expected.ActualCost, subRepo.lastAmount, 1e-12)
 			})
 		}
 	}
@@ -44,7 +45,8 @@ func TestOpenAIGatewayServiceRecordUsage_CNAndOpenCodeClaudeRequireExplicitPrici
 		t.Run(platform, func(t *testing.T) {
 			usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 			userRepo := &openAIRecordUsageUserRepoStub{}
-			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+			subRepo := &openAIRecordUsageSubRepoStub{}
+			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 			svc.resolver = NewModelPricingResolver(nil, svc.billingService)
 			group := &Group{ID: 1, Platform: platform, RateMultiplier: 1.1}
 			usage := OpenAIUsage{InputTokens: 1000, OutputTokens: 200}
@@ -70,7 +72,8 @@ func TestOpenAIGatewayServiceRecordUsage_CNAndOpenCodeClaudeHonorExplicitPricing
 			t.Run(platform+"/"+source, func(t *testing.T) {
 				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 				userRepo := &openAIRecordUsageUserRepoStub{}
-				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+				subRepo := &openAIRecordUsageSubRepoStub{}
+				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 				group := &Group{ID: 1, Platform: platform, RateMultiplier: 1.25}
 				inputPrice, outputPrice := 1e-6, 2e-6
 				pricing := ChannelModelPricing{
@@ -99,15 +102,15 @@ func TestOpenAIGatewayServiceRecordUsage_CNAndOpenCodeClaudeHonorExplicitPricing
 				require.NotNil(t, usageRepo.lastLog)
 				require.InDelta(t, expectedTotal, usageRepo.lastLog.TotalCost, 1e-12)
 				require.InDelta(t, expectedActual, usageRepo.lastLog.ActualCost, 1e-12)
-				require.Equal(t, 1, userRepo.deductCalls)
-				require.InDelta(t, expectedActual, userRepo.lastAmount, 1e-12)
+				require.Zero(t, userRepo.deductCalls)
+				require.InDelta(t, expectedActual, subRepo.lastAmount, 1e-12)
 			})
 		}
 	}
 }
 
 func providerClaudeRecordUsageInput(platform, model string, group *Group, usage OpenAIUsage) *OpenAIRecordUsageInput {
-	return &OpenAIRecordUsageInput{
+	return &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 		Result: &OpenAIForwardResult{
 			RequestID: "provider_claude_" + platform,
 			Model:     model, BillingModel: model, UpstreamModel: model,

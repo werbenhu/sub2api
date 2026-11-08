@@ -71,7 +71,11 @@ type PricingInput struct {
 // 2. 如果指定了 GroupID，查找渠道定价并覆盖
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
 	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
-	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
+	platform := ""
+	if input.Group != nil {
+		platform = channelLookupPlatform(ctx, input.Group.Platform)
+	}
+	if groupPricing := matchGroupModelPricing(input.Group, platform, input.Model); groupPricing != nil {
 		// Group token cards only override the first-tier / flat rates.
 		// Long-context ladders come from official presets, gated by the checkbox.
 		if groupPricing.BillingMode == "" || groupPricing.BillingMode == BillingModeToken {
@@ -144,14 +148,19 @@ func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPric
 	return resolved
 }
 
-func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
+func matchGroupModelPricing(group *Group, platform, model string) *ChannelModelPricing {
 	if group == nil {
 		return nil
 	}
+	platform = strings.ToLower(strings.TrimSpace(platform))
 	model = normalizeChannelPricingModelName(model)
 	var wildcard *ChannelModelPricing
 	for i := range group.ModelPricing {
 		entry := &group.ModelPricing[i]
+		entryPlatform := strings.ToLower(strings.TrimSpace(entry.Platform))
+		if platform != "" && entryPlatform != "" && entryPlatform != platform {
+			continue
+		}
 		for _, pattern := range entry.Models {
 			normalized := normalizeChannelPricingModelName(pattern)
 			if normalized == model {

@@ -51,8 +51,7 @@ func (s *BatchImageBillingRecoveryService) ReleaseStaleUnsubmittedOnce(ctx conte
 		}
 		msg := "batch image submission did not reach provider before recovery cutoff"
 		// 原子转 failed 并复核 stale 条件：List 与转态之间 job 可能已被慢提交
-		// 心跳续期或提交成功（provider_job_name 已写入），此时绝不能退款，
-		// 否则上游任务照常产生成本而用户已拿回冻结余额。
+		// 心跳续期或提交成功（provider_job_name 已写入），此时不能再终止任务。
 		applied, err := s.Repo.FailStaleUnsubmittedBatchImageJob(ctx, job.BatchID, cutoff, "SUBMIT_STALE_BEFORE_PROVIDER", msg)
 		if err != nil {
 			// applied=true 时 UPDATE 已提交（仅审计事件写入失败）：必须继续释放，
@@ -70,7 +69,7 @@ func (s *BatchImageBillingRecoveryService) ReleaseStaleUnsubmittedOnce(ctx conte
 			continue
 		}
 		job.Status = BatchImageJobStatusFailed
-		if err := releaseBatchImageBalanceHold(ctx, s.Billing, job, batchImageDerefString(job.RequestHash)); err != nil {
+		if err := releaseBatchImageSubscription(ctx, s.Billing, job, batchImageDerefString(job.RequestHash)); err != nil {
 			// job 已转 failed、不会再进入 stale 列表：必须给释放失败留下
 			// 自动重试路径（入队后由 worker 的 releaseTerminalHold 兜底），
 			// 否则冻结余额永久泄漏。

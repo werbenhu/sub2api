@@ -135,7 +135,7 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 					nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 				)
 				cfg := &config.Config{RunMode: config.RunModeSimple}
-				billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+				billingCacheService := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 				t.Cleanup(billingCacheService.Stop)
 				h := &GatewayHandler{
 					gatewayService:      gatewayService,
@@ -158,6 +158,7 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 				c.Request = req
 				c.Set(string(middleware.ContextKeyAPIKey), apiKey)
 				c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
+				c.Set(string(middleware.ContextKeySubscription), activeTestSubscription(0, 0))
 
 				ep.call(h, c)
 

@@ -976,3 +976,25 @@ func TestCalculateCostUnified_UsesContinuousMediaUnits(t *testing.T) {
 	require.NoError(t, err)
 	require.InDelta(t, 0.12, cost.TotalCost, 1e-12)
 }
+
+func TestResolveGroupPricingUsesConcretePlatform(t *testing.T) {
+	inputPriceOpenAI := 1e-6
+	inputPriceKimi := 2e-6
+	group := &Group{Platform: PlatformComposite, ModelPricing: []ChannelModelPricing{
+		{Platform: PlatformOpenAI, Models: []string{"shared"}, BillingMode: BillingModeToken, InputPrice: &inputPriceOpenAI},
+		{Platform: PlatformKimi, Models: []string{"shared"}, BillingMode: BillingModeToken, InputPrice: &inputPriceKimi},
+	}}
+	resolver := NewModelPricingResolver(nil, newTestBillingServiceForResolver())
+
+	for _, tc := range []struct {
+		platform string
+		price    float64
+	}{{PlatformOpenAI, inputPriceOpenAI}, {PlatformKimi, inputPriceKimi}} {
+		resolved := resolver.Resolve(WithResolvedTargetPlatform(context.Background(), tc.platform), PricingInput{
+			Model: "shared", Group: group,
+		})
+		require.Equal(t, PricingSourceGroup, resolved.Source)
+		require.NotNil(t, resolved.BasePricing)
+		require.InDelta(t, tc.price, resolved.BasePricing.InputPricePerToken, 1e-12)
+	}
+}

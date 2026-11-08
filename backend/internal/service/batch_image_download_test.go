@@ -193,7 +193,7 @@ func newTestBatchImageDownloadService() (*BatchImageDownloadService, *fakeBatchI
 	repo := newFakeBatchImageRepository()
 	apiKeyID := int64(22)
 	accountID := int64(101)
-	repo.jobs["imgbatch_download"] = &BatchImageJob{
+	repo.jobs["imgbatch_download"] = &BatchImageJob{SubscriptionID: i64p(1),
 		BatchID:           "imgbatch_download",
 		UserID:            11,
 		APIKeyID:          &apiKeyID,

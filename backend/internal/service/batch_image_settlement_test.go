@@ -41,9 +41,10 @@ func TestBatchImageSettlementService_SettlesAndChargesSuccessfulImagesOnly(t *te
 	require.Len(t, billing.captures, 1)
 	require.Equal(t, int64(321), billing.captures[0].APIKeyID)
 	require.Equal(t, job.UserID, billing.captures[0].UserID)
-	require.Equal(t, job.BatchID, billing.captures[0].BatchID)
-	require.Equal(t, 0.75, billing.captures[0].ActualAmount)
-	require.Equal(t, 1.25, billing.captures[0].HoldAmount)
+	require.Equal(t, BatchImageCaptureRequestID(job.BatchID), billing.captures[0].RequestID)
+	require.Equal(t, job.SubscriptionID, billing.captures[0].SubscriptionID)
+	require.Equal(t, 0.75, billing.captures[0].SubscriptionCost)
+	require.Zero(t, billing.captures[0].BalanceCost)
 	require.NotContains(t, fmt.Sprintf("%+v", billing.captures[0]), batchImageTestData)
 	require.NotContains(t, fmt.Sprintf("%+v", billing.captures[0]), "gs://")
 	require.NotContains(t, fmt.Sprintf("%+v", billing.captures[0]), "prompt")
@@ -64,7 +65,7 @@ func TestBatchImageSettlementService_ZeroSuccessCanComplete(t *testing.T) {
 	require.Equal(t, 0.0, result.ActualCost)
 	require.Equal(t, BatchImageJobStatusCompleted, repo.jobs[job.BatchID].Status)
 	require.Len(t, billing.captures, 1)
-	require.Equal(t, 0.0, billing.captures[0].ActualAmount)
+	require.Equal(t, 0.0, billing.captures[0].SubscriptionCost)
 }
 
 func TestBatchImageSettlementService_CompletedJobReturnsAlreadySettledWithoutBilling(t *testing.T) {
@@ -183,8 +184,7 @@ func TestBatchImageSettlementService_UsesSubmittedPricingSnapshot(t *testing.T) 
 	require.NoError(t, err)
 	require.InDelta(t, 0.5, result.ActualCost, 1e-12)
 	require.Len(t, billing.captures, 1)
-	require.InDelta(t, 0.5, billing.captures[0].ActualAmount, 1e-12)
-	require.InDelta(t, 0.55, billing.captures[0].HoldAmount, 1e-12)
+	require.InDelta(t, 0.5, billing.captures[0].SubscriptionCost, 1e-12)
 }
 
 func TestBatchImageSettlementService_BillingFailureLeavesSettlingAndRecordsError(t *testing.T) {
@@ -255,11 +255,9 @@ func TestBatchImagePipelineProcessor_FailsAndReleasesAfterSettlementRetryLimit(t
 	require.Equal(t, BatchImageJobStatusFailed, repo.jobs[job.BatchID].Status)
 	require.Equal(t, "SETTLEMENT_BILLING_RETRY_EXHAUSTED", batchImageDerefString(repo.jobs[job.BatchID].LastErrorCode))
 	require.Len(t, billing.captures, 1)
-	require.Len(t, billing.releases, 1)
-	require.Equal(t, BatchImageReleaseRequestID(job.BatchID), billing.releases[0].RequestID)
 }
 
-func TestBatchImageSettlementRetryExhaustedReleaseIsIdempotentAfterTransitionFailure(t *testing.T) {
+func TestBatchImageSettlementRetryExhaustedTerminalTransitionCanRetry(t *testing.T) {
 	repo := newFakeBatchImageRepository()
 	job := testSettlingBatchImageJob("imgbatch_retry_exhausted_transition_fail")
 	job.RetryCount = batchImageSettlementMaxRetries
@@ -272,16 +270,12 @@ func TestBatchImageSettlementRetryExhaustedReleaseIsIdempotentAfterTransitionFai
 	_, err := svc.Settle(context.Background(), job.BatchID)
 	require.ErrorContains(t, err, "temporary transition failure")
 	require.Equal(t, BatchImageJobStatusSettling, repo.jobs[job.BatchID].Status)
-	require.Len(t, billing.releases, 1)
-	require.Len(t, billing.seen, 1)
 
 	repo.transitionErr = nil
 	_, err = svc.Settle(context.Background(), job.BatchID)
 	require.ErrorIs(t, err, ErrBatchImageSettlementBillingFailed)
 	require.Equal(t, BatchImageJobStatusFailed, repo.jobs[job.BatchID].Status)
-	require.Len(t, billing.releases, 2)
-	require.Equal(t, billing.releases[0].RequestID, billing.releases[1].RequestID)
-	require.Len(t, billing.seen, 1)
+	require.Empty(t, billing.commands)
 }
 
 func TestBatchImageSettlementService_CostExceedsHoldExhaustsAndReleases(t *testing.T) {
@@ -310,11 +304,8 @@ func TestBatchImageSettlementService_CostExceedsHoldExhaustsAndReleases(t *testi
 	require.ErrorIs(t, err, ErrBatchImageSettlementBillingFailed)
 	require.Equal(t, BatchImageJobStatusFailed, repo.jobs[job.BatchID].Status)
 	require.Empty(t, billing.captures)
-	require.Len(t, billing.releases, 1)
-	require.Equal(t, BatchImageReleaseRequestID(job.BatchID), billing.releases[0].RequestID)
 	// 释放指纹必须与 processor/Cancel/recovery 一致地使用 RequestHash，
 	// 否则共享同一 request id 的后续释放会命中指纹冲突（毒消息）。
-	require.Equal(t, requestHash, billing.releases[0].RequestPayloadHash)
 }
 
 func TestBatchImageSettlementService_InvalidCountsExhaustsAndReleases(t *testing.T) {
@@ -337,18 +328,6 @@ func TestBatchImageSettlementService_InvalidCountsExhaustsAndReleases(t *testing
 	require.ErrorIs(t, err, ErrBatchImageSettlementBillingFailed)
 	require.Equal(t, BatchImageJobStatusFailed, repo.jobs[job.BatchID].Status)
 	require.Empty(t, billing.captures)
-	require.Len(t, billing.releases, 1)
-	require.Equal(t, requestHash, billing.releases[0].RequestPayloadHash)
-}
-
-func TestReleaseBatchImageBalanceHold_TreatsFingerprintConflictAsReleased(t *testing.T) {
-	job := testSettlingBatchImageJob("imgbatch_release_conflict")
-	// 历史版本用 manifestHash 释放过一次：同一 request id 再以 RequestHash
-	// 释放会命中指纹冲突。资金已归还，必须视为幂等成功而非毒消息。
-	billing := &fakeBatchImageBillingRepo{releaseErr: ErrUsageBillingRequestConflict}
-	err := releaseBatchImageBalanceHold(context.Background(), billing, job, "request-hash")
-	require.NoError(t, err)
-	require.Len(t, billing.releases, 1)
 }
 
 func TestBatchImageSettlementManifestHash(t *testing.T) {
@@ -396,7 +375,7 @@ func testSettlingBatchImageJob(batchID string) *BatchImageJob {
 	outputRef := "files/output"
 	holdAmount := 1.25
 	holdID := BatchImageHoldRequestID(batchID)
-	return &BatchImageJob{
+	return &BatchImageJob{SubscriptionID: i64p(1),
 		BatchID:           batchID,
 		UserID:            123,
 		APIKeyID:          &apiKeyID,
@@ -432,80 +411,35 @@ func (r *fakeBatchImagePricingResolver) BatchImageUnitPrice(_ context.Context, j
 }
 
 type fakeBatchImageBillingRepo struct {
+	UsageBillingRepository
 	commands       []*UsageBillingCommand
-	reserves       []*BatchImageBalanceHoldCommand
-	captures       []*BatchImageBalanceHoldCommand
-	releases       []*BatchImageBalanceHoldCommand
+	captures       []*UsageBillingCommand
 	seen           map[string]struct{}
 	alreadyApplied map[string]bool
 	err            error
-	reserveErr     error
 	captureErr     error
-	releaseErr     error
 }
 
 func (r *fakeBatchImageBillingRepo) Apply(_ context.Context, cmd *UsageBillingCommand) (*UsageBillingApplyResult, error) {
+	r.commands = append(r.commands, cmd)
+	r.captures = append(r.captures, cmd)
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.captureErr != nil {
+		return nil, r.captureErr
+	}
 	if r.seen == nil {
 		r.seen = make(map[string]struct{})
-	}
-	if r.err != nil {
-		r.commands = append(r.commands, cmd)
-		return nil, r.err
 	}
 	if cmd != nil {
 		cmd.Normalize()
 		if _, ok := r.seen[cmd.RequestID]; ok || r.alreadyApplied[cmd.RequestID] {
-			r.commands = append(r.commands, cmd)
 			return &UsageBillingApplyResult{Applied: false}, nil
 		}
 		r.seen[cmd.RequestID] = struct{}{}
 	}
-	r.commands = append(r.commands, cmd)
 	return &UsageBillingApplyResult{Applied: true}, nil
-}
-
-func (r *fakeBatchImageBillingRepo) ReserveBatchImageBalance(_ context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
-	if r.reserveErr != nil {
-		r.reserves = append(r.reserves, cmd)
-		return nil, r.reserveErr
-	}
-	return r.applyHold(cmd, &r.reserves)
-}
-
-func (r *fakeBatchImageBillingRepo) CaptureBatchImageBalance(_ context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
-	if r.captureErr != nil {
-		r.captures = append(r.captures, cmd)
-		return nil, r.captureErr
-	}
-	return r.applyHold(cmd, &r.captures)
-}
-
-func (r *fakeBatchImageBillingRepo) ReleaseBatchImageBalance(_ context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
-	if r.releaseErr != nil {
-		r.releases = append(r.releases, cmd)
-		return nil, r.releaseErr
-	}
-	return r.applyHold(cmd, &r.releases)
-}
-
-func (r *fakeBatchImageBillingRepo) applyHold(cmd *BatchImageBalanceHoldCommand, calls *[]*BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
-	if r.seen == nil {
-		r.seen = make(map[string]struct{})
-	}
-	if r.err != nil {
-		*calls = append(*calls, cmd)
-		return nil, r.err
-	}
-	if cmd != nil {
-		cmd.Normalize()
-		if _, ok := r.seen[cmd.RequestID]; ok || r.alreadyApplied[cmd.RequestID] {
-			*calls = append(*calls, cmd)
-			return &BatchImageBalanceHoldResult{Applied: false}, nil
-		}
-		r.seen[cmd.RequestID] = struct{}{}
-	}
-	*calls = append(*calls, cmd)
-	return &BatchImageBalanceHoldResult{Applied: true}, nil
 }
 
 var _ UsageBillingRepository = (*fakeBatchImageBillingRepo)(nil)

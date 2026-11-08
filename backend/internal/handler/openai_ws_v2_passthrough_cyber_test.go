@@ -76,7 +76,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string, sett
 
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 2)}
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), nil, billingCacheSvc, nil, &service.DeferredService{},
@@ -100,6 +100,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string, sett
 		Name:    "ws-cyber-key",
 		Key:     "sk-handler-cyber-test",
 		GroupID: &groupID,
+		Group:   &service.Group{ID: groupID, SubscriptionType: service.SubscriptionTypeSubscription},
 		User:    &service.User{ID: 1751, Status: service.StatusActive},
 	}
 	handlerDone := make(chan struct{})
@@ -107,6 +108,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string, sett
 	router.Use(func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyAPIKey), apiKey)
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
+		c.Set(string(middleware.ContextKeySubscription), activeTestSubscription(apiKey.User.ID, groupID))
 		c.Next()
 	})
 	router.GET("/openai/v1/responses", func(c *gin.Context) {

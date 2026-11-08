@@ -76,6 +76,33 @@ func (_u *BatchImageJobUpdate) ClearAPIKeyID() *BatchImageJobUpdate {
 	return _u
 }
 
+// SetSubscriptionID sets the "subscription_id" field.
+func (_u *BatchImageJobUpdate) SetSubscriptionID(v int64) *BatchImageJobUpdate {
+	_u.mutation.ResetSubscriptionID()
+	_u.mutation.SetSubscriptionID(v)
+	return _u
+}
+
+// SetNillableSubscriptionID sets the "subscription_id" field if the given value is not nil.
+func (_u *BatchImageJobUpdate) SetNillableSubscriptionID(v *int64) *BatchImageJobUpdate {
+	if v != nil {
+		_u.SetSubscriptionID(*v)
+	}
+	return _u
+}
+
+// AddSubscriptionID adds value to the "subscription_id" field.
+func (_u *BatchImageJobUpdate) AddSubscriptionID(v int64) *BatchImageJobUpdate {
+	_u.mutation.AddSubscriptionID(v)
+	return _u
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (_u *BatchImageJobUpdate) ClearSubscriptionID() *BatchImageJobUpdate {
+	_u.mutation.ClearSubscriptionID()
+	return _u
+}
+
 // SetAccountID sets the "account_id" field.
 func (_u *BatchImageJobUpdate) SetAccountID(v int64) *BatchImageJobUpdate {
 	_u.mutation.ResetAccountID()
@@ -928,6 +955,15 @@ func (_u *BatchImageJobUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if _u.mutation.APIKeyIDCleared() {
 		_spec.ClearField(batchimagejob.FieldAPIKeyID, field.TypeInt64)
 	}
+	if value, ok := _u.mutation.SubscriptionID(); ok {
+		_spec.SetField(batchimagejob.FieldSubscriptionID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSubscriptionID(); ok {
+		_spec.AddField(batchimagejob.FieldSubscriptionID, field.TypeInt64, value)
+	}
+	if _u.mutation.SubscriptionIDCleared() {
+		_spec.ClearField(batchimagejob.FieldSubscriptionID, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.AccountID(); ok {
 		_spec.SetField(batchimagejob.FieldAccountID, field.TypeInt64, value)
 	}
@@ -1200,6 +1236,33 @@ func (_u *BatchImageJobUpdateOne) AddAPIKeyID(v int64) *BatchImageJobUpdateOne {
 // ClearAPIKeyID clears the value of the "api_key_id" field.
 func (_u *BatchImageJobUpdateOne) ClearAPIKeyID() *BatchImageJobUpdateOne {
 	_u.mutation.ClearAPIKeyID()
+	return _u
+}
+
+// SetSubscriptionID sets the "subscription_id" field.
+func (_u *BatchImageJobUpdateOne) SetSubscriptionID(v int64) *BatchImageJobUpdateOne {
+	_u.mutation.ResetSubscriptionID()
+	_u.mutation.SetSubscriptionID(v)
+	return _u
+}
+
+// SetNillableSubscriptionID sets the "subscription_id" field if the given value is not nil.
+func (_u *BatchImageJobUpdateOne) SetNillableSubscriptionID(v *int64) *BatchImageJobUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionID(*v)
+	}
+	return _u
+}
+
+// AddSubscriptionID adds value to the "subscription_id" field.
+func (_u *BatchImageJobUpdateOne) AddSubscriptionID(v int64) *BatchImageJobUpdateOne {
+	_u.mutation.AddSubscriptionID(v)
+	return _u
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (_u *BatchImageJobUpdateOne) ClearSubscriptionID() *BatchImageJobUpdateOne {
+	_u.mutation.ClearSubscriptionID()
 	return _u
 }
 
@@ -2084,6 +2147,15 @@ func (_u *BatchImageJobUpdateOne) sqlSave(ctx context.Context) (_node *BatchImag
 	}
 	if _u.mutation.APIKeyIDCleared() {
 		_spec.ClearField(batchimagejob.FieldAPIKeyID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.SubscriptionID(); ok {
+		_spec.SetField(batchimagejob.FieldSubscriptionID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSubscriptionID(); ok {
+		_spec.AddField(batchimagejob.FieldSubscriptionID, field.TypeInt64, value)
+	}
+	if _u.mutation.SubscriptionIDCleared() {
+		_spec.ClearField(batchimagejob.FieldSubscriptionID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.AccountID(); ok {
 		_spec.SetField(batchimagejob.FieldAccountID, field.TypeInt64, value)

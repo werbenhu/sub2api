@@ -26,7 +26,7 @@ func TestSimpleModeRecordUsageWindowOptIn(t *testing.T) {
 						svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(logs, billing, users, subs, nil)
 						svc.cfg.RunMode = config.RunModeSimple
 						svc.cfg.SimpleModeKeyRateLimitEnabled = enabled
-						err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+						err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 							Result: &OpenAIForwardResult{RequestID: "simple-request", Model: "gpt-5.1", Usage: OpenAIUsage{InputTokens: 100, OutputTokens: 20}, Stream: stream},
 							APIKey: key, User: user, Account: account,
 						})
@@ -35,7 +35,7 @@ func TestSimpleModeRecordUsageWindowOptIn(t *testing.T) {
 						svc := newGatewayRecordUsageServiceWithBillingRepoForTest(logs, billing, users, subs)
 						svc.cfg.RunMode = config.RunModeSimple
 						svc.cfg.SimpleModeKeyRateLimitEnabled = enabled
-						err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+						err := svc.RecordUsage(context.Background(), &RecordUsageInput{Subscription: &UserSubscription{ID: 1},
 							Result: &ForwardResult{RequestID: "simple-request", Model: "claude-sonnet-4", Usage: ClaudeUsage{InputTokens: 100, OutputTokens: 20}, Stream: stream},
 							APIKey: key, User: user, Account: account,
 						})
@@ -45,14 +45,10 @@ func TestSimpleModeRecordUsageWindowOptIn(t *testing.T) {
 					require.Positive(t, logs.lastLog.ActualCost)
 					require.Zero(t, users.deductCalls)
 					require.Zero(t, subs.incrementCalls)
-					if !enabled {
-						require.Zero(t, billing.calls)
-						return
-					}
 					require.Equal(t, 1, billing.calls)
-					require.InDelta(t, logs.lastLog.ActualCost, billing.lastCmd.APIKeyRateLimitCost, 1e-12)
+					require.Zero(t, billing.lastCmd.APIKeyRateLimitCost)
 					require.Zero(t, billing.lastCmd.BalanceCost)
-					require.Zero(t, billing.lastCmd.SubscriptionCost)
+					require.InDelta(t, logs.lastLog.ActualCost, billing.lastCmd.SubscriptionCost, 1e-12)
 					require.Zero(t, billing.lastCmd.APIKeyQuotaCost)
 					require.Zero(t, billing.lastCmd.AccountQuotaCost)
 				})

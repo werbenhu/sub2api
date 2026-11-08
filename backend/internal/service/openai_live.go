@@ -820,10 +820,7 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	upstreamEndpoint := "/backend-api/codex/realtime/calls"
 	userAgent := record.UserAgent
 	ipAddress := record.IPAddress
-	billingType := int8(BillingTypeBalance)
-	if record.SubscriptionID > 0 {
-		billingType = BillingTypeSubscription
-	}
+	billingType := int8(BillingTypeSubscription)
 	// TODO(billing): Live 会话目前不计费：TotalCost/ActualCost 恒为 0，完全绕过
 	// recordUsageCore/applyUsageBilling，余额模式下极低余额也能反复开启最长
 	// liveMaxSessionDuration 的会话。若确认按时长计费，应在此接入计费管道；

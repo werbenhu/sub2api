@@ -649,7 +649,7 @@ func TestDetectAssignSemanticConflictCases(t *testing.T) {
 	require.Equal(t, "notes_mismatch", reason)
 }
 
-func TestAssignSubscriptionGroupTypeValidation(t *testing.T) {
+func TestAssignSubscriptionAcceptsLegacyStandardGroup(t *testing.T) {
 	groupRepo := &subscriptionGroupRepoStub{
 		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeStandard},
 	}
@@ -661,8 +661,7 @@ func TestAssignSubscriptionGroupTypeValidation(t *testing.T) {
 		GroupID:      1,
 		ValidityDays: 30,
 	})
-	require.Error(t, err)
-	require.Equal(t, infraerrors.Code(ErrGroupNotSubscriptionType), infraerrors.Code(err))
+	require.NoError(t, err)
 }
 
 func strconvFormatInt(v int64) string {

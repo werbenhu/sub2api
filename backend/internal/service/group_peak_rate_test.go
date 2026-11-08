@@ -132,17 +132,13 @@ func TestValidatePeakRateConfig(t *testing.T) {
 	}
 }
 
-func TestPeakMultiplierAt_StandardTypeDegradesToOne(t *testing.T) {
-	g := newPeakGroup(true, "14:00", "18:00", 3.0)
-	g.SubscriptionType = "standard"
-	if got := g.PeakMultiplierAt(at(15, 30)); got != 1.0 {
-		t.Fatalf("standard group must degrade to 1.0, got %v", got)
-	}
-
-	sub := newPeakGroup(true, "14:00", "18:00", 3.0)
-	sub.SubscriptionType = "subscription"
-	if got := sub.PeakMultiplierAt(at(15, 30)); got != 3.0 {
-		t.Fatalf("subscription group peak multiplier: got %v, want 3.0", got)
+func TestPeakMultiplierAt_LegacyStandardTypeUsesSubscriptionRate(t *testing.T) {
+	for _, subscriptionType := range []string{"standard", "subscription", ""} {
+		g := newPeakGroup(true, "14:00", "18:00", 3.0)
+		g.SubscriptionType = subscriptionType
+		if got := g.PeakMultiplierAt(at(15, 30)); got != 3.0 {
+			t.Fatalf("subscription type %q peak multiplier: got %v, want 3.0", subscriptionType, got)
+		}
 	}
 }
 

@@ -314,6 +314,35 @@ func TestCompositeTargetPlatformMiddlewareUsesExplicitRouteForMultipartImages(t 
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func TestCompositeGeminiTargetPlatformMiddlewareRejectsOAuthAmbiguousOwnership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resolver := service.NewCompositeRouteResolver(nil)
+	resolver.SetModelOwnershipResolver(func(context.Context, int64, string) (service.CompositeModelOwnership, error) {
+		return service.CompositeModelOwnership{Ambiguous: true, OpenAIGatewayOAuthClaimed: true}, nil
+	})
+	router := gin.New()
+	router.Use(gin.HandlerFunc(servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+		groupID := int64(1)
+		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+			GroupID: &groupID,
+			Group:   &service.Group{ID: groupID, Platform: service.PlatformComposite},
+		})
+		c.Next()
+	})))
+	router.Use(compositeGeminiTargetPlatformMiddleware(resolver))
+	router.POST("/v1beta/models/*modelAction", func(c *gin.Context) {
+		t.Fatal("ambiguous Gemini route must not reach the handler")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1beta/models/gpt-6-astra:generateContent", strings.NewReader(`{"contents":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "explicit composite route")
+}
+
 func TestCompositeGeminiTargetPlatformMiddlewareUsesPathRoute(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -414,4 +443,37 @@ func TestCompositeLiveRouteDispatchesBySessionModelNotTopLevelAlias(t *testing.T
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestCompositeTargetPlatformMiddlewareReturnsBadRequestForRouteConflict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	resolver := service.NewCompositeRouteResolver(compositeRouteRepoStub{routes: []service.CompositeModelRoute{
+		{ID: 1, GroupID: 1, PublicModel: "shared", MatchType: service.CompositeRouteMatchExact, TargetPlatform: service.PlatformTypeSafe, Enabled: true},
+		{ID: 2, GroupID: 1, PublicModel: "shared", MatchType: service.CompositeRouteMatchExact, TargetPlatform: service.PlatformOpenAI, Enabled: true},
+	}})
+	router := gin.New()
+	router.Use(gin.HandlerFunc(servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+		groupID := int64(1)
+		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+			GroupID: &groupID,
+			Group:   &service.Group{ID: groupID, Platform: service.PlatformComposite},
+		})
+		c.Next()
+	})))
+	router.Use(compositeTargetPlatformMiddleware(resolver))
+	handlerCalled := false
+	router.POST("/v1/responses", func(c *gin.Context) {
+		handlerCalled = true
+		c.Status(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"shared"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "invalid_request_error")
+	require.Contains(t, w.Body.String(), "cannot share public model")
+	require.False(t, handlerCalled)
 }

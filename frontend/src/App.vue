@@ -5,19 +5,16 @@ import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import AdminComplianceDialog from '@/components/admin/AdminComplianceDialog.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
-import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
-import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
+import { useAppStore, useAuthStore, useSubscriptionStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 import { updateFavicon } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
-const announcementStore = useAnnouncementStore()
 const adminComplianceStore = useAdminComplianceStore()
 const adminSettingsStore = useAdminSettingsStore()
 
@@ -26,9 +23,7 @@ function updateDocumentTitle() {
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems, {
-    billingMode: resolveSiteBillingMode(appStore.cachedPublicSettings),
-  })
+  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
 }
 
 // Watch for site settings changes and update favicon/title
@@ -50,7 +45,6 @@ watch(
     () => appStore.siteName,
     () => appStore.cachedPublicSettings?.custom_menu_items,
     () => appStore.cachedPublicSettings?.subscription_enabled,
-    () => appStore.cachedPublicSettings?.payment_balance_disabled,
     () => authStore.isAdmin,
     () => adminSettingsStore.customMenuItems,
   ],
@@ -58,19 +52,11 @@ watch(
   { deep: true }
 )
 
-// Watch for authentication state and manage subscription data + announcements
-function onVisibilityChange() {
-  if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
-    announcementStore.fetchAnnouncements()
-  }
-}
-
 function onAdminComplianceRequired(event: Event) {
   const detail = (event as CustomEvent<Record<string, string>>).detail || {}
   adminComplianceStore.requireAcknowledgement(detail)
 }
 
-// 订阅功能开关（opt-out）。关闭后不再预加载/轮询订阅接口；开关在登录后才到达时补启动，反向则清空。
 const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
 
 function startSubscriptionSync() {
@@ -91,51 +77,25 @@ watch(subscriptionFeatureEnabled, (enabled) => {
 
 watch(
   () => authStore.isAuthenticated,
-  (isAuthenticated, oldValue) => {
+  (isAuthenticated) => {
     if (isAuthenticated) {
       if (authStore.isAdmin) {
         adminComplianceStore.fetchStatus().catch((error) => {
           console.error('Failed to fetch admin compliance status:', error)
         })
       }
-
-      // User logged in: preload subscriptions and start polling (skipped when the
-      // subscription feature is switched off; see the flag watcher below)
       if (subscriptionFeatureEnabled.value) {
         startSubscriptionSync()
       }
-
-      // Announcements: new login vs page refresh restore
-      if (oldValue === false) {
-        // New login: delay 3s then force fetch
-        setTimeout(() => announcementStore.fetchAnnouncements(true), 3000)
-      } else {
-        // Page refresh restore (oldValue was undefined)
-        announcementStore.fetchAnnouncements()
-      }
-
-      // Register visibility change listener
-      document.addEventListener('visibilitychange', onVisibilityChange)
     } else {
-      // User logged out: clear data and stop polling
       subscriptionStore.clear()
-      announcementStore.reset()
       adminComplianceStore.reset()
-      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   },
   { immediate: true }
 )
 
-// Route change trigger (throttled by store)
-router.afterEach(() => {
-  if (authStore.isAuthenticated) {
-    announcementStore.fetchAnnouncements()
-  }
-})
-
 onBeforeUnmount(() => {
-  document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('admin-compliance-required', onAdminComplianceRequired)
 })
 
@@ -165,6 +125,5 @@ onMounted(async () => {
   <NavigationProgress />
   <RouterView />
   <Toast />
-  <AnnouncementPopup />
   <AdminComplianceDialog />
 </template>

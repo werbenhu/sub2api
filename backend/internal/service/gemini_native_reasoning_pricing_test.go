@@ -112,7 +112,8 @@ func TestGeminiNativeReasoningPricingUsesExplicitForwardedLevel(t *testing.T) {
 
 					usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 					userRepo := &openAIRecordUsageUserRepoStub{}
-					billing := newGatewayRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{})
+					subRepo := &openAIRecordUsageSubRepoStub{}
+					billing := newGatewayRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 					billing.resolver = NewModelPricingResolver(nil, billing.billingService)
 					groupID := int64(77)
 					apiKey := &APIKey{ID: 10, GroupID: &groupID, Group: &Group{
@@ -123,14 +124,14 @@ func TestGeminiNativeReasoningPricingUsesExplicitForwardedLevel(t *testing.T) {
 							ReasoningEffortMultipliers: map[string]float64{"minimal": 1.1, "low": 1.2, "medium": 1.5, "high": 2},
 						}},
 					}}
-					require.NoError(t, billing.RecordUsage(context.Background(), &RecordUsageInput{
+					require.NoError(t, billing.RecordUsage(context.Background(), &RecordUsageInput{Subscription: &UserSubscription{ID: 1},
 						Result: result, APIKey: apiKey, User: &User{ID: 20}, Account: account,
 					}))
 					require.NotNil(t, usageRepo.lastLog)
 					require.Equal(t, tc.wantEffort, optionalStringValue(usageRepo.lastLog.ReasoningEffort))
 					require.InDelta(t, tc.multiplier, usageRepo.lastLog.TotalCost, 1e-12)
 					require.InDelta(t, tc.multiplier*0.5, usageRepo.lastLog.ActualCost, 1e-12)
-					require.InDelta(t, tc.multiplier*0.5, userRepo.lastAmount, 1e-12)
+					require.InDelta(t, tc.multiplier*0.5, subRepo.lastAmount, 1e-12)
 				})
 			}
 		}

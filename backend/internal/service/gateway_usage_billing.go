@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -84,16 +83,6 @@ type postUsageBillingParams struct {
 	AccountRateMultiplier float64
 	APIKeyService         APIKeyQuotaUpdater
 	Platform              string // 来自 APIKey 关联 Group 的平台标识
-	// SimpleModeKeyRateLimitOnly opts the request into the simple-mode billing
-	// path that records only API-key 5h/1d/7d window usage. It must not trigger
-	// balance, subscription, account, platform, or lifetime-key-quota effects.
-	SimpleModeKeyRateLimitOnly bool
-}
-
-var ErrSimpleModeKeyRateLimitBillingUnavailable = errors.New("simple mode api key rate-limit billing unavailable")
-
-func simpleModeKeyRateLimitBillingEnabled(cfg *config.Config, apiKey *APIKey) bool {
-	return cfg != nil && cfg.RunMode == config.RunModeSimple && cfg.SimpleModeKeyRateLimitEnabled && apiKey != nil && apiKey.HasRateLimits()
 }
 
 // PlatformFromAPIKey 从 APIKey 关联的 Group 推导 platform 名称。
@@ -150,23 +139,11 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 
 	cost := p.Cost
 
-	if p.IsSubscriptionBill {
-		// Subscription usage tracked by ActualCost so group rate multiplier
-		// consumes the quota at the expected speed.
-		if cost.ActualCost > 0 {
-			if err := deps.userSubRepo.IncrementUsage(billingCtx, p.Subscription.ID, cost.ActualCost); err != nil {
-				slog.Error("increment subscription usage failed", "subscription_id", p.Subscription.ID, "error", err)
-			}
-		}
-	} else {
-		if cost.ActualCost > 0 {
-			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, cost.ActualCost); err != nil {
-				slog.Error("deduct balance failed", "user_id", p.User.ID, "error", err)
-			} else if deps.billingCacheService != nil {
-				if err := deps.billingCacheService.InvalidateUserBalance(billingCtx, p.User.ID); err != nil {
-					slog.Warn("invalidate balance cache after legacy deduction failed", "user_id", p.User.ID, "error", err)
-				}
-			}
+	// Subscription usage tracked by ActualCost so group rate multiplier
+	// consumes the quota at the expected speed.
+	if cost.ActualCost > 0 && p.Subscription != nil && deps.userSubRepo != nil {
+		if err := deps.userSubRepo.IncrementUsage(billingCtx, p.Subscription.ID, cost.ActualCost); err != nil {
+			slog.Error("increment subscription usage failed", "subscription_id", p.Subscription.ID, "error", err)
 		}
 	}
 
@@ -319,23 +296,10 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		}
 	}
 
-	if p.SimpleModeKeyRateLimitOnly {
-		if p.Cost.ActualCost > 0 && p.APIKey.HasRateLimits() {
-			cmd.APIKeyRateLimitCost = p.Cost.ActualCost
-		}
-		cmd.Normalize()
-		return cmd
-	}
-
-	// Record subscription / balance cost using ActualCost so the group (and any
-	// user-specific) rate multiplier consumes subscription quota at the expected
-	// speed. TotalCost remains the raw (pre-multiplier) value; downstream guards
-	// on "> 0" still correctly skip free subscriptions (RateMultiplier == 0).
-	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
+	// ActualCost includes the group and user-specific rate multipliers.
+	if p.Subscription != nil && p.Cost.TotalCost > 0 {
 		cmd.SubscriptionID = &p.Subscription.ID
 		cmd.SubscriptionCost = p.Cost.ActualCost
-	} else if p.Cost.ActualCost > 0 {
-		cmd.BalanceCost = p.Cost.ActualCost
 	}
 
 	if p.shouldDeductAPIKeyQuota() {
@@ -361,11 +325,6 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
 	if cmd == nil || cmd.RequestID == "" || repo == nil {
-		if p.SimpleModeKeyRateLimitOnly {
-			return false, ErrSimpleModeKeyRateLimitBillingUnavailable
-		}
-		// The legacy path is only a fallback for standard billing. Simple mode
-		// must retain request-id deduplication and never bill other balances.
 		postUsageBilling(ctx, p, deps)
 		return true, nil
 	}
@@ -398,26 +357,8 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 		return
 	}
 
-	if p.SimpleModeKeyRateLimitOnly {
-		// Simple-mode key windows are DB-authoritative during preflight. Clear
-		// any Redis snapshot after the committed increment as a best-effort aid
-		// when switching back to standard mode. Enforcement here never relies on
-		// successful cache invalidation.
-		if p.APIKey != nil && deps.billingCacheService != nil {
-			if err := deps.billingCacheService.InvalidateAPIKeyRateLimit(ctx, p.APIKey.ID); err != nil {
-				logger.LegacyPrintf("service.gateway", "Warning: invalidate simple-mode api key rate-limit cache failed for key %d: %v", p.APIKey.ID, err)
-			}
-		}
-		deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
-		return
-	}
-
-	if p.IsSubscriptionBill {
-		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
-			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
-		}
-	} else if p.Cost.ActualCost > 0 && p.User != nil {
-		syncBalanceCacheAfterDeduction(ctx, p, deps, result)
+	if p.Subscription != nil && p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
+		deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 	}
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() && deps.billingCacheService != nil {
@@ -830,12 +771,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		}
 	}
 
-	// 判断计费方式：订阅模式 vs 余额模式
-	isSubscriptionBilling := subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
-	billingType := BillingTypeBalance
-	if isSubscriptionBilling {
-		billingType = BillingTypeSubscription
-	}
+	isSubscriptionBilling := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
+	billingType := BillingTypeSubscription
 
 	// 创建使用日志
 	accountRateMultiplier := account.BillingRateMultiplier()
@@ -862,14 +799,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		addCacheStorageToAccountStatsCost(usageLog, cacheStorageCost)
 	}
 
-	simpleModeKeyRateLimitOnly := simpleModeKeyRateLimitBillingEnabled(s.cfg, apiKey)
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && !simpleModeKeyRateLimitOnly {
-		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
-		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
-		s.deferredService.ScheduleLastUsedUpdate(account.ID)
-		return nil
-	}
-
 	// 配额平台由 handler 在请求 ctx 内经 QuotaPlatform() 算定并通过 input 传入；
 	// 后扣运行在 worker 池的 background ctx 上，无法再从 ctx 取 ForcePlatform。
 	// 缺省（未设置）时回退到分组平台，保持对其它调用方的兼容。
@@ -882,17 +811,16 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	requestID := usageLog.RequestID
 	_, billingErr := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
-		Cost:                       cost,
-		User:                       user,
-		APIKey:                     apiKey,
-		Account:                    account,
-		Subscription:               subscription,
-		RequestPayloadHash:         resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
-		IsSubscriptionBill:         isSubscriptionBilling && !simpleModeKeyRateLimitOnly,
-		AccountRateMultiplier:      accountRateMultiplier,
-		APIKeyService:              input.APIKeyService,
-		Platform:                   quotaPlatform,
-		SimpleModeKeyRateLimitOnly: simpleModeKeyRateLimitOnly,
+		Cost:                  cost,
+		User:                  user,
+		APIKey:                apiKey,
+		Account:               account,
+		Subscription:          subscription,
+		RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
+		IsSubscriptionBill:    isSubscriptionBilling,
+		AccountRateMultiplier: accountRateMultiplier,
+		APIKeyService:         input.APIKeyService,
+		Platform:              quotaPlatform,
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {

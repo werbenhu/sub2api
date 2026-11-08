@@ -7,8 +7,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 const (
@@ -35,12 +37,27 @@ func (d CompositeRouteDecision) AmbiguousMessage() string {
 	return fmt.Sprintf("Model %q is mapped on multiple provider platforms in this group; configure an explicit composite route", d.PublicModel)
 }
 
+const (
+	compositeRoundRobinCacheSize = 1024
+	compositeRouteCursorTTL      = 24 * time.Hour
+)
+
+type CompositeRouteCursorCache interface {
+	NextCompositeRouteCursor(ctx context.Context, key string, ttl time.Duration) (uint64, error)
+	PeekCompositeRouteCursor(ctx context.Context, key string) (uint64, error)
+}
+
+type compositeRoundRobinEntry struct {
+	cursor   atomic.Uint64
+	lastUsed time.Time
+}
+
 type CompositeRouteResolver struct {
 	repo                   CompositeModelRouteRepository
 	modelOwnershipResolver CompositeModelOwnershipResolver
-	// roundRobinCounters keeps the cursor for equal-priority routes. A resolver
-	// is shared by the HTTP server, so the cursor must be safe across requests.
-	roundRobinCounters sync.Map // map[string]*atomic.Uint64
+	cursorCache            CompositeRouteCursorCache
+	roundRobinMu           sync.Mutex
+	roundRobinCounters     map[string]*compositeRoundRobinEntry
 }
 
 func NewCompositeRouteResolver(repo CompositeModelRouteRepository) *CompositeRouteResolver {
@@ -51,6 +68,10 @@ func (r *CompositeRouteResolver) SetModelOwnershipResolver(resolver CompositeMod
 	if r != nil {
 		r.modelOwnershipResolver = resolver
 	}
+}
+
+func ProvideCompositeRouteResolver(repo CompositeModelRouteRepository, cursorCache CompositeRouteCursorCache) *CompositeRouteResolver {
+	return &CompositeRouteResolver{repo: repo, cursorCache: cursorCache}
 }
 
 // ListExactPublicModels returns enabled, concrete route IDs suitable for a model catalog.
@@ -65,7 +86,7 @@ func (r *CompositeRouteResolver) ListExactPublicModels(ctx context.Context, grou
 	models := make([]string, 0, len(routes))
 	seen := make(map[string]struct{}, len(routes))
 	for _, route := range routes {
-		if route.Enabled && route.MatchType == CompositeRouteMatchExact &&
+		if route.Enabled && normalizeCompositeRouteMatchType(route.MatchType) == CompositeRouteMatchExact &&
 			(endpoint == "" || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny || normalizeCompositeRouteEndpoint(route.Endpoint) == endpoint) {
 			if model := strings.TrimSpace(route.PublicModel); model != "" {
 				// A plain model ID represents an automatically routed model. Keep
@@ -100,8 +121,20 @@ func (r *CompositeRouteResolver) FilterCodexModels(ctx context.Context, groupID 
 func filterSystemOneRouteModels(routes []CompositeModelRoute, models []string, endpoint string) []string {
 	filtered := make([]string, 0, len(models))
 	for _, model := range models {
-		route, matched := matchCompositeRoute(routes, model, normalizeCompositeRouteEndpoint(endpoint))
-		if !matched || route.TargetPlatform != PlatformTypeSafe {
+		candidates := bestCompositeRouteCandidates(compositeRouteCandidates(
+			routes, model, normalizeCompositeRouteEndpoint(endpoint),
+		))
+		if hasMixedSystemOneCandidates(candidates) {
+			continue
+		}
+		systemOneOnly := len(candidates) > 0
+		for _, candidate := range candidates {
+			if candidate.route.TargetPlatform != PlatformTypeSafe {
+				systemOneOnly = false
+				break
+			}
+		}
+		if !systemOneOnly {
 			filtered = append(filtered, model)
 		}
 	}
@@ -109,6 +142,15 @@ func filterSystemOneRouteModels(routes []CompositeModelRoute, models []string, e
 }
 
 func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, model, endpoint string) (CompositeRouteDecision, error) {
+	return r.resolve(ctx, groupID, model, endpoint, true)
+}
+
+// ResolvePreview resolves a route without advancing production round-robin cursors.
+func (r *CompositeRouteResolver) ResolvePreview(ctx context.Context, groupID int64, model, endpoint string) (CompositeRouteDecision, error) {
+	return r.resolve(ctx, groupID, model, endpoint, false)
+}
+
+func (r *CompositeRouteResolver) resolve(ctx context.Context, groupID int64, model, endpoint string, advanceRoundRobin bool) (CompositeRouteDecision, error) {
 	model = strings.TrimSpace(model)
 	endpoint = normalizeCompositeRouteEndpoint(endpoint)
 	decision := CompositeRouteDecision{
@@ -126,7 +168,14 @@ func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, mod
 		if err != nil {
 			return decision, fmt.Errorf("list composite routes: %w", err)
 		}
-		if route, ok := r.selectCompositeRoute(routes, groupID, model, endpoint); ok {
+		eligible := bestCompositeRouteCandidates(compositeRouteCandidates(routes, model, endpoint))
+		if hasMixedSystemOneCandidates(eligible) {
+			return decision, infraerrors.BadRequest(
+				"COMPOSITE_ROUTE_CONFIG_INVALID",
+				fmt.Sprintf("Composite TypeSafe routes cannot share public model %q with other platforms", model),
+			)
+		}
+		if route, ok := r.selectCompositeRoute(ctx, eligible, compositeRoundRobinKey(groupID, model, endpoint, eligible), advanceRoundRobin); ok {
 			upstreamModel := strings.TrimSpace(route.UpstreamModel)
 			if upstreamModel == "" {
 				upstreamModel = model
@@ -193,27 +242,99 @@ func (r *CompositeRouteResolver) Resolve(ctx context.Context, groupID int64, mod
 	return decision, nil
 }
 
-func matchCompositeRoute(routes []CompositeModelRoute, model, endpoint string) (CompositeModelRoute, bool) {
-	candidates := compositeRouteCandidates(routes, model, endpoint)
-	if len(candidates) == 0 {
+// selectCompositeRoute round-robins the best equally specific, equal-priority routes.
+func (r *CompositeRouteResolver) selectCompositeRoute(ctx context.Context, eligible []compositeRouteCandidate, key string, advanceRoundRobin bool) (CompositeModelRoute, bool) {
+	if len(eligible) == 0 {
 		return CompositeModelRoute{}, false
 	}
-	return candidates[0].route, true
+	if len(eligible) == 1 || r == nil {
+		return eligible[0].route, true
+	}
+
+	index := r.roundRobinIndex(ctx, key, advanceRoundRobin)
+	return eligible[index%uint64(len(eligible))].route, true
 }
 
-// selectCompositeRoute applies the same deterministic match precedence as
-// matchCompositeRoute, then round-robins routes that are equally specific and
-// have the same priority. This lets one public model fan out to multiple
-// providers while preserving explicit priority ordering.
-func (r *CompositeRouteResolver) selectCompositeRoute(routes []CompositeModelRoute, groupID int64, model, endpoint string) (CompositeModelRoute, bool) {
-	candidates := compositeRouteCandidates(routes, model, endpoint)
-	if len(candidates) == 0 {
-		return CompositeModelRoute{}, false
+func (r *CompositeRouteResolver) roundRobinIndex(ctx context.Context, key string, advance bool) uint64 {
+	if r.cursorCache != nil {
+		var index uint64
+		var err error
+		if advance {
+			index, err = r.cursorCache.NextCompositeRouteCursor(ctx, key, compositeRouteCursorTTL)
+		} else {
+			index, err = r.cursorCache.PeekCompositeRouteCursor(ctx, key)
+		}
+		if err == nil {
+			return index
+		}
 	}
-	if len(candidates) == 1 || r == nil {
-		return candidates[0].route, true
+	r.roundRobinMu.Lock()
+	entry := r.roundRobinCounters[key]
+	if entry == nil {
+		if !advance {
+			r.roundRobinMu.Unlock()
+			return 0
+		}
+		if r.roundRobinCounters == nil {
+			r.roundRobinCounters = make(map[string]*compositeRoundRobinEntry)
+		}
+		if len(r.roundRobinCounters) >= compositeRoundRobinCacheSize {
+			oldestKey := ""
+			var oldest time.Time
+			for candidateKey, candidate := range r.roundRobinCounters {
+				if oldestKey == "" || candidate.lastUsed.Before(oldest) {
+					oldestKey = candidateKey
+					oldest = candidate.lastUsed
+				}
+			}
+			delete(r.roundRobinCounters, oldestKey)
+		}
+		entry = &compositeRoundRobinEntry{}
+		r.roundRobinCounters[key] = entry
 	}
+	if !advance {
+		index := entry.cursor.Load()
+		r.roundRobinMu.Unlock()
+		return index
+	}
+	entry.lastUsed = time.Now()
+	r.roundRobinMu.Unlock()
+	return entry.cursor.Add(1) - 1
+}
 
+func compositeRoundRobinKey(groupID int64, model, endpoint string, eligible []compositeRouteCandidate) string {
+	var key strings.Builder
+	fmt.Fprintf(&key, "%d|%d|%s|%s", groupID, len(model), model, endpoint)
+	for _, candidate := range eligible {
+		fmt.Fprintf(&key, "|%d", candidate.route.ID)
+	}
+	return key.String()
+}
+
+func hasMixedSystemOneCandidates(candidates []compositeRouteCandidate) bool {
+	hasSystemOne := false
+	hasOtherPlatform := false
+	for _, candidate := range candidates {
+		if candidate.route.TargetPlatform == PlatformTypeSafe {
+			hasSystemOne = true
+		} else {
+			hasOtherPlatform = true
+		}
+	}
+	return hasSystemOne && hasOtherPlatform
+}
+
+type compositeRouteCandidate struct {
+	route          CompositeModelRoute
+	matchStrength  int
+	endpointWeight int
+	prefixLen      int
+}
+
+func bestCompositeRouteCandidates(candidates []compositeRouteCandidate) []compositeRouteCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
 	best := candidates[0]
 	eligible := candidates[:1]
 	for _, candidate := range candidates[1:] {
@@ -225,23 +346,7 @@ func (r *CompositeRouteResolver) selectCompositeRoute(routes []CompositeModelRou
 		}
 		eligible = append(eligible, candidate)
 	}
-	if len(eligible) == 1 {
-		return eligible[0].route, true
-	}
-
-	key := fmt.Sprintf("%d|%s|%s|%d|%d|%d|%d", groupID, model, endpoint,
-		best.matchStrength, best.endpointWeight, best.prefixLen, best.route.Priority)
-	cursor := &atomic.Uint64{}
-	actual, _ := r.roundRobinCounters.LoadOrStore(key, cursor)
-	index := actual.(*atomic.Uint64).Add(1) - 1
-	return eligible[index%uint64(len(eligible))].route, true
-}
-
-type compositeRouteCandidate struct {
-	route          CompositeModelRoute
-	matchStrength  int
-	endpointWeight int
-	prefixLen      int
+	return eligible
 }
 
 func compositeRouteCandidates(routes []CompositeModelRoute, model, endpoint string) []compositeRouteCandidate {
@@ -289,7 +394,7 @@ func compositeRouteCandidates(routes []CompositeModelRoute, model, endpoint stri
 		})
 	}
 	if len(candidates) == 0 {
-		return CompositeModelRoute{}, false
+		return nil
 	}
 
 	sort.SliceStable(candidates, func(i, j int) bool {

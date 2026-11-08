@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,14 +61,6 @@ func TestCompositeRouteResolverCodexFilteringMatchesProductionPriority(t *testin
 			},
 			want: []string{"alias", "unrouted"},
 		},
-		{
-			name: "lower ID breaks tie",
-			routes: []CompositeModelRoute{
-				{ID: 2, PublicModel: "alias", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI},
-				{ID: 1, PublicModel: "alias", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformTypeSafe},
-			},
-			want: []string{"unrouted"},
-		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			for index := range scenario.routes {
@@ -79,13 +74,12 @@ func TestCompositeRouteResolverCodexFilteringMatchesProductionPriority(t *testin
 			decision, err := resolver.Resolve(context.Background(), 7, "alias", CompositeRouteEndpointResponses)
 			require.NoError(t, err)
 			require.True(t, decision.Matched)
-			require.Equal(t, decision.TargetPlatform != PlatformTypeSafe, len(models) == 2)
 			exactModels, err := resolver.ListExactPublicModels(context.Background(), 7, CompositeRouteEndpointResponses, false)
 			require.NoError(t, err)
-			if decision.TargetPlatform == PlatformTypeSafe {
-				require.Empty(t, exactModels)
-			} else {
+			if len(models) == 2 {
 				require.Contains(t, exactModels, "alias")
+			} else {
+				require.Empty(t, exactModels)
 			}
 		})
 	}
@@ -194,6 +188,130 @@ func TestCompositeRouteResolverListExactPublicModelsDeduplicatesAutoRoutedModels
 	models, err := resolver.ListExactPublicModels(context.Background(), 7, CompositeRouteEndpointResponses, true)
 	require.NoError(t, err)
 	require.Equal(t, []string{"gpt-5", "openai/gpt-5", "kimi/gpt-5"}, models)
+}
+
+func TestCompositeRouteResolverListNormalizesEmptyMatchType(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 7, PublicModel: "legacy", TargetPlatform: PlatformOpenAI, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+	}})
+
+	models, err := resolver.ListExactPublicModels(context.Background(), 7, CompositeRouteEndpointResponses, true)
+	require.NoError(t, err)
+	require.Equal(t, []string{"legacy"}, models)
+}
+
+func TestCompositeRouteResolverRoundRobinIsIndependentPerModel(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 7, PublicModel: "shared/", MatchType: CompositeRouteMatchPrefix, TargetPlatform: PlatformOpenAI, Enabled: true},
+		{ID: 2, GroupID: 7, PublicModel: "shared/", MatchType: CompositeRouteMatchPrefix, TargetPlatform: PlatformKimi, Enabled: true},
+	}})
+
+	for _, tc := range []struct {
+		model    string
+		platform string
+	}{
+		{model: "shared/a", platform: PlatformOpenAI},
+		{model: "shared/b", platform: PlatformOpenAI},
+		{model: "shared/a", platform: PlatformKimi},
+		{model: "shared/b", platform: PlatformKimi},
+	} {
+		decision, err := resolver.Resolve(context.Background(), 7, tc.model, CompositeRouteEndpointResponses)
+		require.NoError(t, err)
+		require.Equal(t, tc.platform, decision.TargetPlatform)
+	}
+}
+
+func TestCompositeRouteResolverRoundRobinCacheIsBounded(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 7, PublicModel: "shared/", MatchType: CompositeRouteMatchPrefix, TargetPlatform: PlatformOpenAI, Enabled: true},
+		{ID: 2, GroupID: 7, PublicModel: "shared/", MatchType: CompositeRouteMatchPrefix, TargetPlatform: PlatformKimi, Enabled: true},
+	}})
+
+	for index := range compositeRoundRobinCacheSize + 1 {
+		_, err := resolver.Resolve(context.Background(), 7, fmt.Sprintf("shared/%d", index), CompositeRouteEndpointResponses)
+		require.NoError(t, err)
+	}
+	resolver.roundRobinMu.Lock()
+	defer resolver.roundRobinMu.Unlock()
+	require.LessOrEqual(t, len(resolver.roundRobinCounters), compositeRoundRobinCacheSize)
+}
+
+func TestCompositeRouteResolverPreviewShowsNextWithoutAdvancing(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, Enabled: true},
+		{ID: 2, GroupID: 7, PublicModel: "gpt-5", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformKimi, Enabled: true},
+	}})
+
+	decision, err := resolver.ResolvePreview(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, decision.TargetPlatform)
+	decision, err = resolver.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, decision.TargetPlatform)
+	for range 2 {
+		decision, err = resolver.ResolvePreview(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+		require.NoError(t, err)
+		require.Equal(t, PlatformKimi, decision.TargetPlatform)
+	}
+	decision, err = resolver.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformKimi, decision.TargetPlatform)
+}
+
+type compositeRouteCursorCacheStub struct {
+	cursors map[string]uint64
+}
+
+func (s *compositeRouteCursorCacheStub) NextCompositeRouteCursor(_ context.Context, key string, _ time.Duration) (uint64, error) {
+	if s.cursors == nil {
+		s.cursors = make(map[string]uint64)
+	}
+	index := s.cursors[key]
+	s.cursors[key]++
+	return index, nil
+}
+
+func (s *compositeRouteCursorCacheStub) PeekCompositeRouteCursor(_ context.Context, key string) (uint64, error) {
+	return s.cursors[key], nil
+}
+
+func TestCompositeRouteResolverSharesCursorAcrossInstances(t *testing.T) {
+	cache := &compositeRouteCursorCacheStub{}
+	repo := compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 7, PublicModel: "gpt-5", TargetPlatform: PlatformOpenAI, Enabled: true},
+		{ID: 2, GroupID: 7, PublicModel: "gpt-5", TargetPlatform: PlatformKimi, Enabled: true},
+	}}
+	first := ProvideCompositeRouteResolver(repo, cache)
+	second := ProvideCompositeRouteResolver(repo, cache)
+
+	decision, err := first.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, decision.TargetPlatform)
+	decision, err = second.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformKimi, decision.TargetPlatform)
+	decision, err = second.ResolvePreview(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, decision.TargetPlatform)
+	decision, err = first.Resolve(context.Background(), 7, "gpt-5", CompositeRouteEndpointResponses)
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, decision.TargetPlatform)
+}
+
+func TestCompositeRouteResolverRejectsMixedSystemOneCandidates(t *testing.T) {
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 7, PublicModel: "shared", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformTypeSafe, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+		{ID: 2, GroupID: 7, PublicModel: "shared", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, Endpoint: CompositeRouteEndpointResponses, Enabled: true},
+	}})
+
+	models, err := resolver.FilterCodexModels(context.Background(), 7, []string{"shared"})
+	require.NoError(t, err)
+	require.Empty(t, models)
+	decision, err := resolver.Resolve(context.Background(), 7, "shared", CompositeRouteEndpointResponses)
+	require.ErrorContains(t, err, "TypeSafe routes cannot share")
+	require.True(t, infraerrors.IsBadRequest(err))
+	require.Equal(t, "COMPOSITE_ROUTE_CONFIG_INVALID", infraerrors.Reason(err))
+	require.False(t, decision.Matched)
 }
 
 // Scenario: 唯一平台的精确别名可路由

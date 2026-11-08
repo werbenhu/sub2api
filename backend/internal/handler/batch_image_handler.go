@@ -39,6 +39,12 @@ func (h *BatchImageHandler) Submit(c *gin.Context) {
 		batchImageError(c, infraerrors.New(http.StatusUnauthorized, "API_KEY_REQUIRED", "API key is required"))
 		return
 	}
+	subscription, ok := middleware.GetSubscriptionFromContext(c)
+	if !ok || subscription == nil {
+		batchImageError(c, service.ErrSubscriptionInvalid)
+		return
+	}
+	owner.SubscriptionID = subscription.ID
 	if !h.checkSecurityAuditBeforeSubmit(c, &req) {
 		return
 	}

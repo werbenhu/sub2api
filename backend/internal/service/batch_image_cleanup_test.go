@@ -203,7 +203,7 @@ func cleanupTestJob(batchID, status string) *BatchImageJob {
 	apiKeyID := int64(22)
 	accountID := int64(101)
 	now := time.Now().Add(-48 * time.Hour)
-	return &BatchImageJob{
+	return &BatchImageJob{SubscriptionID: i64p(1),
 		BatchID:           batchID,
 		UserID:            11,
 		APIKeyID:          &apiKeyID,

@@ -38,8 +38,6 @@ func RegisterUserRoutes(
 			}
 			user.PUT("/password", h.User.ChangePassword)
 			user.PUT("", h.User.UpdateProfile)
-			user.GET("/aff", h.User.GetAffiliate)
-			user.POST("/aff/transfer", h.User.TransferAffiliateQuota)
 			user.POST("/account-bindings/email/send-code", h.User.SendEmailBindingCode)
 			user.POST("/account-bindings/email", h.User.BindEmailIdentity)
 			user.DELETE("/account-bindings/:provider", h.User.UnbindIdentity)
@@ -96,12 +94,6 @@ func RegisterUserRoutes(
 			groups.GET("/rates", h.APIKey.GetUserGroupRates)
 		}
 
-		// 用户可用渠道（非管理员接口）
-		channels := authenticated.Group("/channels")
-		{
-			channels.GET("/available", h.AvailableChannel.List)
-		}
-
 		// 使用记录（聚合统计属重查询，叠加更严格的按用户限流）
 		usage := authenticated.Group("/usage")
 		usage.Use(panelRateLimiter.Heavy())
@@ -117,20 +109,6 @@ func RegisterUserRoutes(
 			usage.GET("/dashboard/models", h.Usage.DashboardModels)
 			usage.GET("/dashboard/snapshot-v2", h.Usage.DashboardSnapshotV2)
 			usage.POST("/dashboard/api-keys-usage", h.Usage.DashboardAPIKeysUsage)
-		}
-
-		// 公告（用户可见）
-		announcements := authenticated.Group("/announcements")
-		{
-			announcements.GET("", h.Announcement.List)
-			announcements.POST("/:id/read", h.Announcement.MarkRead)
-		}
-
-		// 卡密兑换
-		redeem := authenticated.Group("/redeem")
-		{
-			redeem.POST("", h.Redeem.Redeem)
-			redeem.GET("/history", h.Redeem.GetHistory)
 		}
 
 		// 用户订阅

@@ -41,7 +41,7 @@ func newOpenAIImagesSizeRoutingTestHandler(t *testing.T, accounts []service.Acco
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
 	)
-	billingService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingService := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingService.Stop)
 	handler := NewOpenAIGatewayHandler(
 		gatewayService,
@@ -68,6 +68,7 @@ func serveOpenAIImagesSizeRoutingRequest(handler *OpenAIGatewayHandler, groupID 
 		User:    &service.User{ID: 100},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(0, 0))
 	handler.Images(c)
 	return rec, c
 }
@@ -131,6 +132,7 @@ func serveOpenAIResponsesSizeRoutingRequest(handler *OpenAIGatewayHandler, group
 		User:    &service.User{ID: 100},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(0, 0))
 	handler.Responses(c)
 	return rec, c
 }

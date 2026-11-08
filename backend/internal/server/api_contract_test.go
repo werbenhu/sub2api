@@ -339,7 +339,7 @@ func TestAPIContracts(t *testing.T) {
 						UpdatedAt:    deps.now,
 					},
 				})
-				deps.userSubRepo.SetActiveByUserID(1, nil)
+				deps.userSubRepo.SetActiveByUserID(1, []service.UserSubscription{{UserID: 1, GroupID: 10, Status: service.SubscriptionStatusActive, ExpiresAt: deps.now.Add(time.Hour)}})
 			},
 			method:     http.MethodGet,
 			path:       "/api/v1/groups/available",

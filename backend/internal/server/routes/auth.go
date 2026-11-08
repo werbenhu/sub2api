@@ -56,14 +56,6 @@ func RegisterAuthRoutes(
 		}), h.Auth.RefreshToken)
 		// 登出接口（公开，允许未认证用户调用以撤销Refresh Token）
 		auth.POST("/logout", h.Auth.Logout)
-		// 优惠码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）
-		auth.POST("/validate-promo-code", rateLimiter.LimitWithOptions("validate-promo", 10, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.ValidatePromoCode)
-		// 邀请码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）
-		auth.POST("/validate-invitation-code", rateLimiter.LimitWithOptions("validate-invitation", 10, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.ValidateInvitationCode)
 		// 忘记密码接口添加速率限制：每分钟最多 5 次（Redis 故障时 fail-close）
 		auth.POST("/forgot-password", rateLimiter.LimitWithOptions("forgot-password", 5, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
@@ -72,10 +64,6 @@ func RegisterAuthRoutes(
 		auth.POST("/reset-password", rateLimiter.LimitWithOptions("reset-password", 10, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.ResetPassword)
-		auth.GET("/oauth/linuxdo/start", h.Auth.LinuxDoOAuthStart)
-		auth.POST("/oauth/linuxdo/start", rateLimiter.LimitWithOptions("oauth-linuxdo-start", 20, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.LinuxDoOAuthStart)
 		auth.GET("/oauth/github/start", h.Auth.GitHubOAuthStart)
 		auth.POST("/oauth/github/start", rateLimiter.LimitWithOptions("oauth-github-start", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
@@ -98,26 +86,6 @@ func RegisterAuthRoutes(
 			}),
 			h.Auth.CompleteGoogleOAuthRegistration,
 		)
-		auth.GET("/oauth/linuxdo/bind/start", func(c *gin.Context) {
-			query := c.Request.URL.Query()
-			query.Set("intent", "bind_current_user")
-			c.Request.URL.RawQuery = query.Encode()
-			h.Auth.LinuxDoOAuthStart(c)
-		})
-		auth.GET("/oauth/linuxdo/callback", h.Auth.LinuxDoOAuthCallback)
-		auth.GET("/oauth/wechat/start", h.Auth.WeChatOAuthStart)
-		auth.POST("/oauth/wechat/start", rateLimiter.LimitWithOptions("oauth-wechat-start", 20, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.WeChatOAuthStart)
-		auth.GET("/oauth/wechat/bind/start", func(c *gin.Context) {
-			query := c.Request.URL.Query()
-			query.Set("intent", "bind_current_user")
-			c.Request.URL.RawQuery = query.Encode()
-			h.Auth.WeChatOAuthStart(c)
-		})
-		auth.GET("/oauth/wechat/callback", h.Auth.WeChatOAuthCallback)
-		auth.GET("/oauth/wechat/payment/start", h.Auth.WeChatPaymentOAuthStart)
-		auth.GET("/oauth/wechat/payment/callback", h.Auth.WeChatPaymentOAuthCallback)
 		auth.POST("/oauth/pending/exchange",
 			rateLimiter.LimitWithOptions("oauth-pending-exchange", 20, time.Minute, middleware.RateLimitOptions{
 				FailureMode: middleware.RateLimitFailClose,
@@ -141,42 +109,6 @@ func RegisterAuthRoutes(
 				FailureMode: middleware.RateLimitFailClose,
 			}),
 			h.Auth.BindPendingOAuthLogin,
-		)
-		auth.POST("/oauth/linuxdo/complete-registration",
-			rateLimiter.LimitWithOptions("oauth-linuxdo-complete", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CompleteLinuxDoOAuthRegistration,
-		)
-		auth.POST("/oauth/linuxdo/bind-login",
-			rateLimiter.LimitWithOptions("oauth-linuxdo-bind-login", 20, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.BindLinuxDoOAuthLogin,
-		)
-		auth.POST("/oauth/linuxdo/create-account",
-			rateLimiter.LimitWithOptions("oauth-linuxdo-create-account", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CreateLinuxDoOAuthAccount,
-		)
-		auth.POST("/oauth/wechat/complete-registration",
-			rateLimiter.LimitWithOptions("oauth-wechat-complete", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CompleteWeChatOAuthRegistration,
-		)
-		auth.POST("/oauth/wechat/bind-login",
-			rateLimiter.LimitWithOptions("oauth-wechat-bind-login", 20, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.BindWeChatOAuthLogin,
-		)
-		auth.POST("/oauth/wechat/create-account",
-			rateLimiter.LimitWithOptions("oauth-wechat-create-account", 10, time.Minute, middleware.RateLimitOptions{
-				FailureMode: middleware.RateLimitFailClose,
-			}),
-			h.Auth.CreateWeChatOAuthAccount,
 		)
 		auth.GET("/oauth/oidc/start", h.Auth.OIDCOAuthStart)
 		auth.POST("/oauth/oidc/start", rateLimiter.LimitWithOptions("oauth-oidc-start", 20, time.Minute, middleware.RateLimitOptions{

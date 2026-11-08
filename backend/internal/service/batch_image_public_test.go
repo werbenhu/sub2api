@@ -69,11 +69,6 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.Len(t, repo.jobs, 1)
 		require.Len(t, gemini.submits, 1)
 		require.Equal(t, []string{got.ID}, queue.enqueued)
-		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
-		require.Len(t, billing.reserves, 1)
-		require.Equal(t, BatchImageHoldRequestID(got.ID), billing.reserves[0].RequestID)
-		require.InDelta(t, 0.3, billing.reserves[0].HoldAmount, 1e-12)
-		require.Empty(t, billing.releases)
 		authCache := svc.AuthCache.(*fakeBatchImageAuthCacheInvalidator)
 		require.Equal(t, []int64{11}, authCache.userIDs)
 
@@ -116,7 +111,7 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		userRate := 0.5
 		svc.UserGroupRateRepo = &publicBatchImageUserGroupRateRepo{rates: map[int64]*float64{groupID: &userRate}}
 
-		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID}, validBatchImageSubmitRequest(), "")
+		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1}, validBatchImageSubmitRequest(), "")
 		require.NoError(t, err)
 		require.InDelta(t, 0.25, got.EstimatedCost, 1e-12)
 
@@ -150,7 +145,7 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 			},
 		}}
 
-		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID}, validBatchImageSubmitRequest(), "")
+		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1}, validBatchImageSubmitRequest(), "")
 		require.NoError(t, err)
 		require.InDelta(t, 0.134, got.EstimatedCost, 1e-12)
 
@@ -186,7 +181,7 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 			},
 		}}
 
-		_, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID}, validBatchImageSubmitRequest(), "")
+		_, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1}, validBatchImageSubmitRequest(), "")
 		require.ErrorIs(t, err, ErrBatchImageGroupDisabled)
 		require.Empty(t, repo.jobs)
 		require.Empty(t, queue.enqueued)
@@ -197,7 +192,7 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
 		groupID := int64(404)
 
-		_, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID}, validBatchImageSubmitRequest(), "")
+		_, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1}, validBatchImageSubmitRequest(), "")
 		require.ErrorIs(t, err, ErrBatchImageSettlementPricingMissing)
 		require.Empty(t, repo.jobs)
 		require.Empty(t, queue.enqueued)
@@ -346,21 +341,19 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.Len(t, vertex.submits, 1)
 	})
 
-	t.Run("insufficient balance rejects before provider submit", func(t *testing.T) {
+	t.Run("missing subscription rejects before provider submit", func(t *testing.T) {
 		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
-		billing := &fakeBatchImageBillingRepo{err: ErrBatchImageInsufficientBalance}
-		svc.BillingRepo = billing
+		owner := testBatchImageOwner()
+		owner.SubscriptionID = 0
 
-		_, err := svc.Submit(ctx, testBatchImageOwner(), validBatchImageSubmitRequest(), "")
-		require.ErrorIs(t, err, ErrBatchImageInsufficientBalance)
+		_, err := svc.Submit(ctx, owner, validBatchImageSubmitRequest(), "")
+		require.ErrorIs(t, err, ErrSubscriptionInvalid)
 		require.Empty(t, queue.enqueued)
 		require.Empty(t, gemini.submits)
-		require.Len(t, billing.reserves, 1)
-		require.Empty(t, billing.releases)
 		require.Len(t, repo.jobs, 1)
 		for _, job := range repo.jobs {
 			require.Equal(t, BatchImageJobStatusFailed, job.Status)
-			require.Equal(t, "INSUFFICIENT_BALANCE", batchImageDerefString(job.LastErrorCode))
+			require.Equal(t, "SUBSCRIPTION_INVALID", batchImageDerefString(job.LastErrorCode))
 			require.NotNil(t, job.UserDeletedAt)
 		}
 	})
@@ -368,14 +361,10 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 	t.Run("provider failure marks failed and does not enqueue", func(t *testing.T) {
 		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
 		gemini.submitErr = errors.New("projects/secret-provider-job failed")
-		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
 
 		_, err := svc.Submit(ctx, testBatchImageOwner(), validBatchImageSubmitRequest(), "")
 		require.ErrorIs(t, err, ErrBatchImageProviderSubmitFailed)
 		require.Empty(t, queue.enqueued)
-		require.Len(t, billing.reserves, 1)
-		require.Len(t, billing.releases, 1)
-		require.Equal(t, BatchImageReleaseRequestID(billing.reserves[0].BatchID), billing.releases[0].RequestID)
 		require.Len(t, repo.jobs, 1)
 		for _, job := range repo.jobs {
 			require.Equal(t, BatchImageJobStatusFailed, job.Status)
@@ -385,33 +374,12 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		}
 	})
 
-	t.Run("provider failure with release failure enqueues billing retry", func(t *testing.T) {
-		svc, repo, queue, gemini, _ := newTestBatchImagePublicService(true)
-		gemini.submitErr = errors.New("projects/secret-provider-job failed")
-		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
-		billing.releaseErr = errors.New("billing database timeout")
-
-		_, err := svc.Submit(ctx, testBatchImageOwner(), validBatchImageSubmitRequest(), "")
-		require.ErrorIs(t, err, ErrBatchImageBillingHoldFailed)
-		require.Len(t, billing.reserves, 1)
-		require.Len(t, billing.releases, 1)
-		require.Len(t, repo.jobs, 1)
-		for _, job := range repo.jobs {
-			require.Equal(t, BatchImageJobStatusFailed, job.Status)
-			require.Equal(t, "BILLING_RELEASE_FAILED", batchImageDerefString(job.LastErrorCode))
-			require.Equal(t, []string{job.BatchID}, queue.enqueued)
-		}
-	})
-
 	t.Run("queue failure is recorded after provider submit", func(t *testing.T) {
 		svc, repo, queue, _, _ := newTestBatchImagePublicService(true)
 		queue.err = errors.New("redis unavailable")
-		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
 
 		_, err := svc.Submit(ctx, testBatchImageOwner(), validBatchImageSubmitRequest(), "")
 		require.ErrorIs(t, err, ErrBatchImageQueueFailed)
-		require.Len(t, billing.reserves, 1)
-		require.Empty(t, billing.releases)
 		require.Len(t, repo.jobs, 1)
 		for _, job := range repo.jobs {
 			require.Equal(t, BatchImageJobStatusSubmitted, job.Status)
@@ -467,7 +435,7 @@ func TestBatchImagePublicService_List(t *testing.T) {
 	visibleKeyID := int64(22)
 	otherKeyID := int64(23)
 
-	repo.jobs["visible-1"] = &BatchImageJob{
+	repo.jobs["visible-1"] = &BatchImageJob{SubscriptionID: i64p(1),
 		BatchID:   "visible-1",
 		UserID:    11,
 		APIKeyID:  &visibleKeyID,
@@ -477,7 +445,7 @@ func TestBatchImagePublicService_List(t *testing.T) {
 		ItemCount: 1,
 		CreatedAt: time.Now(),
 	}
-	repo.jobs["hidden-other-key"] = &BatchImageJob{
+	repo.jobs["hidden-other-key"] = &BatchImageJob{SubscriptionID: i64p(1),
 		BatchID:   "hidden-other-key",
 		UserID:    11,
 		APIKeyID:  &otherKeyID,
@@ -527,7 +495,7 @@ func TestBatchImagePublicService_ListModels(t *testing.T) {
 			"gemini-2.5-flash-image": "gemini-2.5-flash-image",
 		})}
 
-		got, err := svc.ListModels(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID})
+		got, err := svc.ListModels(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1})
 		require.NoError(t, err)
 		require.Equal(t, []BatchImagePublicModel{{
 			ID:       "gemini-2.5-flash-image",
@@ -588,7 +556,7 @@ func TestBatchImagePublicService_ListModels(t *testing.T) {
 			groupID: {ID: groupID, AllowBatchImageGeneration: false},
 		}}
 
-		_, err := svc.ListModels(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID})
+		_, err := svc.ListModels(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1})
 		require.ErrorIs(t, err, ErrBatchImageGroupDisabled)
 	})
 }
@@ -600,7 +568,7 @@ func TestBatchImagePublicService_StatusItemsAndCancel(t *testing.T) {
 		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
 		apiKeyID := int64(22)
 		accountID := int64(101)
-		repo.jobs["imgbatch_status"] = &BatchImageJob{
+		repo.jobs["imgbatch_status"] = &BatchImageJob{SubscriptionID: i64p(1),
 			BatchID:         "imgbatch_status",
 			UserID:          11,
 			APIKeyID:        &apiKeyID,
@@ -626,7 +594,7 @@ func TestBatchImagePublicService_StatusItemsAndCancel(t *testing.T) {
 	t.Run("items are filtered paginated and sanitized", func(t *testing.T) {
 		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
 		apiKeyID := int64(22)
-		repo.jobs["imgbatch_items"] = &BatchImageJob{
+		repo.jobs["imgbatch_items"] = &BatchImageJob{SubscriptionID: i64p(1),
 			BatchID:   "imgbatch_items",
 			UserID:    11,
 			APIKeyID:  &apiKeyID,
@@ -675,7 +643,7 @@ func TestBatchImagePublicService_StatusItemsAndCancel(t *testing.T) {
 		accountID := int64(101)
 		holdAmount := 0.5
 		holdID := BatchImageHoldRequestID("imgbatch_cancel")
-		repo.jobs["imgbatch_cancel"] = &BatchImageJob{
+		repo.jobs["imgbatch_cancel"] = &BatchImageJob{SubscriptionID: i64p(1),
 			BatchID:         "imgbatch_cancel",
 			UserID:          11,
 			APIKeyID:        &apiKeyID,
@@ -694,8 +662,6 @@ func TestBatchImagePublicService_StatusItemsAndCancel(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "queued", got.Status)
 		require.Equal(t, 1, gemini.cancelCount)
-		billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)
-		require.Empty(t, billing.releases)
 		require.Equal(t, []string{"imgbatch_cancel"}, queue.enqueued)
 		require.Equal(t, BatchImageJobStatusSubmitted, repo.jobs["imgbatch_cancel"].Status)
 		require.Contains(t, repo.events["imgbatch_cancel"], "job_cancel_requested")
@@ -704,7 +670,7 @@ func TestBatchImagePublicService_StatusItemsAndCancel(t *testing.T) {
 	t.Run("cancel terminal job is idempotent", func(t *testing.T) {
 		svc, repo, _, gemini, _ := newTestBatchImagePublicService(true)
 		apiKeyID := int64(22)
-		repo.jobs["imgbatch_done"] = &BatchImageJob{
+		repo.jobs["imgbatch_done"] = &BatchImageJob{SubscriptionID: i64p(1),
 			BatchID:   "imgbatch_done",
 			UserID:    11,
 			APIKeyID:  &apiKeyID,
@@ -725,7 +691,7 @@ func TestBatchImagePublicService_StatusItemsAndCancel(t *testing.T) {
 		gemini.cancelErr = errors.New("projects/secret-provider-job not found")
 		apiKeyID := int64(22)
 		accountID := int64(101)
-		repo.jobs["imgbatch_cancel_error"] = &BatchImageJob{
+		repo.jobs["imgbatch_cancel_error"] = &BatchImageJob{SubscriptionID: i64p(1),
 			BatchID:         "imgbatch_cancel_error",
 			UserID:          11,
 			APIKeyID:        &apiKeyID,
@@ -772,7 +738,7 @@ func newTestBatchImagePublicService(enabled bool) (*BatchImagePublicService, *fa
 }
 
 func testBatchImageOwner() BatchImageOwner {
-	return BatchImageOwner{UserID: 11, APIKeyID: 22}
+	return BatchImageOwner{UserID: 11, APIKeyID: 22, SubscriptionID: 1}
 }
 
 type fakeBatchImageAuthCacheInvalidator struct {

@@ -48,14 +48,6 @@ func TestBuildUsageBillingCommand_SubscriptionAppliesRateMultiplier(t *testing.T
 			wantSub:        0,
 			wantBalance:    0,
 		},
-		{
-			name:           "balance billing keeps using ActualCost (regression)",
-			totalCost:      1.0,
-			actualCost:     2.0,
-			isSubscription: false,
-			wantSub:        0,
-			wantBalance:    2.0,
-		},
 	}
 
 	for _, tt := range tests {

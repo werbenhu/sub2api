@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	pkgerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -2588,6 +2589,11 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		decision, resolveErr := h.compositeResolver.Resolve(c.Request.Context(), apiKey.Group.ID, reqModel, service.CompositeRouteEndpointResponses)
 		if resolveErr != nil {
 			reqLog.Error("openai.websocket_composite_route_failed", zap.Error(resolveErr))
+			if pkgerrors.IsBadRequest(resolveErr) {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
+				closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, pkgerrors.Message(resolveErr))
+				return
+			}
 			closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "Failed to resolve composite model route")
 			return
 		}

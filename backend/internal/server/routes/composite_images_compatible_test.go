@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -101,7 +102,7 @@ func TestCompositeCompatibleImagesEndToEnd(t *testing.T) {
 			cfg := &config.Config{RunMode: config.RunModeSimple}
 			repo := compatibleImagesAccounts{accounts: accounts}
 			upstream, usage := &compatibleImagesUpstream{}, &compatibleImagesUsage{}
-			billingCache := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+			billingCache := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 			t.Cleanup(billingCache.Stop)
 			gateway := service.NewOpenAIGatewayService(repo, usage, nil, nil, nil, nil, nil, cfg, nil, nil, service.NewBillingService(cfg, nil), nil, billingCache, upstream, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil)
 			imagesHandler := handler.NewOpenAIGatewayHandler(gateway, service.NewConcurrencyService(nil), billingCache, service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg), nil, nil, nil, nil, cfg)
@@ -114,6 +115,7 @@ func TestCompositeCompatibleImagesEndToEnd(t *testing.T) {
 			router.Use(func(c *gin.Context) {
 				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{ID: 202, GroupID: &groupID, Group: group, User: &service.User{ID: 303}})
 				c.Set(string(servermiddleware.ContextKeyUser), servermiddleware.AuthSubject{UserID: 303})
+				c.Set(string(servermiddleware.ContextKeySubscription), &service.UserSubscription{ID: 1, UserID: 303, GroupID: groupID, Status: service.SubscriptionStatusActive, ExpiresAt: time.Now().Add(time.Hour)})
 				c.Next()
 			})
 			router.Use(compositeTargetPlatformMiddleware(resolver))

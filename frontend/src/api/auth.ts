@@ -27,9 +27,7 @@ export type LoginResponse = AuthResponse | TotpLoginResponse
 export type OAuthLoginProvider =
   | 'github'
   | 'google'
-  | 'linuxdo'
   | 'dingtalk'
-  | 'wechat'
   | 'oidc'
 
 export interface OAuthLoginStart {
@@ -355,121 +353,6 @@ export async function getPublicSettings(): Promise<PublicSettings> {
   return data
 }
 
-export type WeChatOAuthMode = 'open' | 'mp'
-export type WeChatOAuthUnavailableReason =
-  | 'not_configured'
-  | 'capability_unknown'
-  | 'external_browser_required'
-  | 'wechat_browser_required'
-  | 'native_app_required'
-
-export interface ResolvedWeChatOAuthStart {
-  mode: WeChatOAuthMode | null
-  openEnabled: boolean
-  mpEnabled: boolean
-  mobileEnabled: boolean
-  isWeChatBrowser: boolean
-  unavailableReason: WeChatOAuthUnavailableReason | null
-}
-
-export type WeChatOAuthPublicSettings = {
-  wechat_oauth_enabled?: boolean
-  wechat_oauth_open_enabled?: boolean
-  wechat_oauth_mp_enabled?: boolean
-  wechat_oauth_mobile_enabled?: boolean
-}
-
-export function isWeChatWebOAuthEnabled(
-  settings: WeChatOAuthPublicSettings | null | undefined,
-): boolean {
-  const legacyEnabled = settings?.wechat_oauth_enabled ?? false
-  const hasExplicitCapabilities =
-    typeof settings?.wechat_oauth_open_enabled === 'boolean' ||
-    typeof settings?.wechat_oauth_mp_enabled === 'boolean'
-
-  if (!hasExplicitCapabilities) {
-    return legacyEnabled
-  }
-
-  return settings?.wechat_oauth_open_enabled === true || settings?.wechat_oauth_mp_enabled === true
-}
-
-export function hasExplicitWeChatOAuthCapabilities(
-  settings: WeChatOAuthPublicSettings | null | undefined,
-): settings is WeChatOAuthPublicSettings & {
-  wechat_oauth_open_enabled: boolean
-  wechat_oauth_mp_enabled: boolean
-} {
-  return typeof settings?.wechat_oauth_open_enabled === 'boolean'
-    && typeof settings?.wechat_oauth_mp_enabled === 'boolean'
-}
-
-export function resolveWeChatOAuthStart(
-  settings: WeChatOAuthPublicSettings | null | undefined,
-  userAgent?: string
-): ResolvedWeChatOAuthStart {
-  const normalizedUserAgent = (userAgent
-    ?? (typeof navigator !== 'undefined' ? navigator.userAgent : '')
-    ?? '').trim()
-  const isWeChatBrowser = /MicroMessenger/i.test(normalizedUserAgent)
-  const legacyEnabled = settings?.wechat_oauth_enabled ?? false
-  const openEnabled = typeof settings?.wechat_oauth_open_enabled === 'boolean'
-    ? settings.wechat_oauth_open_enabled
-    : legacyEnabled
-  const mpEnabled = typeof settings?.wechat_oauth_mp_enabled === 'boolean'
-    ? settings.wechat_oauth_mp_enabled
-    : legacyEnabled
-  const mobileEnabled = typeof settings?.wechat_oauth_mobile_enabled === 'boolean'
-    ? settings.wechat_oauth_mobile_enabled
-    : false
-
-  if (isWeChatBrowser) {
-    if (mpEnabled) {
-      return { mode: 'mp', openEnabled, mpEnabled, mobileEnabled, isWeChatBrowser, unavailableReason: null }
-    }
-    if (openEnabled) {
-      return { mode: null, openEnabled, mpEnabled, mobileEnabled, isWeChatBrowser, unavailableReason: 'external_browser_required' }
-    }
-    return { mode: null, openEnabled, mpEnabled, mobileEnabled, isWeChatBrowser, unavailableReason: 'not_configured' }
-  }
-
-  if (openEnabled) {
-    return { mode: 'open', openEnabled, mpEnabled, mobileEnabled, isWeChatBrowser, unavailableReason: null }
-  }
-  if (mpEnabled) {
-    return { mode: null, openEnabled, mpEnabled, mobileEnabled, isWeChatBrowser, unavailableReason: 'wechat_browser_required' }
-  }
-  return { mode: null, openEnabled, mpEnabled, mobileEnabled, isWeChatBrowser, unavailableReason: 'not_configured' }
-}
-
-export function resolveWeChatOAuthStartStrict(
-  settings: WeChatOAuthPublicSettings | null | undefined,
-  userAgent?: string,
-): ResolvedWeChatOAuthStart {
-  const normalizedUserAgent = (userAgent
-    ?? (typeof navigator !== 'undefined' ? navigator.userAgent : '')
-    ?? '').trim()
-  const isWeChatBrowser = /MicroMessenger/i.test(normalizedUserAgent)
-
-  if (!hasExplicitWeChatOAuthCapabilities(settings)) {
-    return {
-      mode: null,
-      openEnabled: false,
-      mpEnabled: false,
-      mobileEnabled: false,
-      isWeChatBrowser,
-      unavailableReason: 'capability_unknown',
-    }
-  }
-
-  return resolveWeChatOAuthStart(settings, normalizedUserAgent)
-}
-
-/**
- * Send verification code to email
- * @param request - Email and optional Turnstile token
- * @returns Response with countdown seconds
- */
 export async function sendVerifyCode(
   request: SendVerifyCodeRequest
 ): Promise<SendVerifyCodeResponse> {
@@ -484,26 +367,6 @@ export async function sendPendingOAuthVerifyCode(
     '/auth/oauth/pending/send-verify-code',
     request
   )
-  return data
-}
-
-/**
- * Validate promo code response
- */
-export interface ValidatePromoCodeResponse {
-  valid: boolean
-  bonus_amount?: number
-  error_code?: string
-  message?: string
-}
-
-/**
- * Validate promo code (public endpoint, no auth required)
- * @param code - Promo code to validate
- * @returns Validation result with bonus amount if valid
- */
-export async function validatePromoCode(code: string): Promise<ValidatePromoCodeResponse> {
-  const { data } = await apiClient.post<ValidatePromoCodeResponse>('/auth/validate-promo-code', { code })
   return data
 }
 
@@ -578,88 +441,40 @@ export async function resetPassword(request: ResetPasswordRequest): Promise<Rese
   return data
 }
 
-/**
- * Complete LinuxDo OAuth registration by supplying an invitation code
- * @param invitationCode - Invitation code entered by the user
- * @returns Token pair on success
- */
-export async function completeLinuxDoOAuthRegistration(
-  invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
-): Promise<OAuthTokenResponse> {
-  return createPendingLinuxDoOAuthAccount(invitationCode, decision, affiliateCode)
-}
-
-/**
- * Complete OIDC OAuth registration by supplying an invitation code
- * @param invitationCode - Invitation code entered by the user
- * @returns Token pair on success
- */
 export async function completeOIDCOAuthRegistration(
   invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
+  decision?: OAuthAdoptionDecision
 ): Promise<OAuthTokenResponse> {
-  return createPendingOIDCOAuthAccount(invitationCode, decision, affiliateCode)
-}
-
-export async function completeWeChatOAuthRegistration(
-  invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
-): Promise<OAuthTokenResponse> {
-  return createPendingWeChatOAuthAccount(invitationCode, decision, affiliateCode)
+  return createPendingOIDCOAuthAccount(invitationCode, decision)
 }
 
 async function createPendingOAuthAccount(
-  provider: 'linuxdo' | 'oidc' | 'wechat' | 'dingtalk',
+  provider: 'oidc' | 'dingtalk',
   invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
+  decision?: OAuthAdoptionDecision
 ): Promise<PendingOAuthCreateAccountResponse> {
-  const normalizedAffiliateCode = affiliateCode?.trim()
   const { data } = await apiClient.post<PendingOAuthCreateAccountResponse>(
     `/auth/oauth/${provider}/complete-registration`,
     {
       invitation_code: invitationCode,
-      ...(normalizedAffiliateCode ? { aff_code: normalizedAffiliateCode } : {}),
       ...serializeOAuthAdoptionDecision(decision)
     }
   )
   return data
 }
 
-export async function createPendingLinuxDoOAuthAccount(
-  invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
-): Promise<PendingOAuthCreateAccountResponse> {
-  return createPendingOAuthAccount('linuxdo', invitationCode, decision, affiliateCode)
-}
-
 export async function createPendingOIDCOAuthAccount(
   invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
+  decision?: OAuthAdoptionDecision
 ): Promise<PendingOAuthCreateAccountResponse> {
-  return createPendingOAuthAccount('oidc', invitationCode, decision, affiliateCode)
-}
-
-export async function createPendingWeChatOAuthAccount(
-  invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
-): Promise<PendingOAuthCreateAccountResponse> {
-  return createPendingOAuthAccount('wechat', invitationCode, decision, affiliateCode)
+  return createPendingOAuthAccount('oidc', invitationCode, decision)
 }
 
 export async function createPendingDingTalkOAuthAccount(
   invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
+  decision?: OAuthAdoptionDecision
 ): Promise<PendingOAuthCreateAccountResponse> {
-  return createPendingOAuthAccount('dingtalk', invitationCode, decision, affiliateCode)
+  return createPendingOAuthAccount('dingtalk', invitationCode, decision)
 }
 
 export async function completePendingOAuthBindLogin(
@@ -696,7 +511,6 @@ export const authAPI = {
   getPublicSettings,
   sendVerifyCode,
   sendPendingOAuthVerifyCode,
-  validatePromoCode,
   validateInvitationCode,
   forgotPassword,
   resetPassword,
@@ -706,13 +520,9 @@ export const authAPI = {
   isPendingOAuthCreateAccountRequired,
   hasPendingOAuthSuggestedProfile,
   completePendingOAuthBindLogin,
-  createPendingLinuxDoOAuthAccount,
   createPendingOIDCOAuthAccount,
-  createPendingWeChatOAuthAccount,
   exchangePendingOAuthCompletion,
-  completeLinuxDoOAuthRegistration,
   completeOIDCOAuthRegistration,
-  completeWeChatOAuthRegistration,
   createPendingDingTalkOAuthAccount
 }
 

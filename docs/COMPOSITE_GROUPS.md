@@ -1,13 +1,17 @@
-# Composite Groups
+# Multi-Platform Groups
 
-Composite groups are an admin routing layer for API keys that should choose a
-concrete provider from the requested model instead of binding the key to a
-single provider group. They support both built-in model detection and an
-admin-configured model route registry for public model aliases.
+Multi-platform groups let one API key serve models from several account
+platforms. The internal platform value remains `composite` for compatibility;
+there is no additional group hierarchy and no need to create separate concrete
+provider groups first.
+
+All groups use subscription quota. Administrators assign or renew subscriptions
+directly. Wallet deduction, online payment, redemption codes, and referral
+billing are not part of this workflow.
 
 ## Supported Providers
 
-Composite groups can route to these concrete account platforms:
+A multi-platform group can contain accounts from:
 
 - Anthropic
 - Gemini
@@ -19,14 +23,14 @@ Composite groups can route to these concrete account platforms:
 - DeepSeek
 - MiniMax
 
-The selected concrete platform is used for account selection, user platform
-quota checks, post-usage billing, ops error platform attribution, channel
-mapping/pricing lookup, and platform usage reporting.
+The selected account's concrete platform is recorded in usage logs and used for
+account selection, platform attribution, and statistics. This keeps same-named
+models distinguishable in operational data even when clients use one public
+model name.
 
-## Route Registry
+## Model Routes
 
-Admins can configure routes on a composite group from the group list's
-`Routes` action or through the admin API:
+Administrators can manage routes from the group list or through:
 
 - `GET /api/v1/admin/groups/:id/composite-routes`
 - `POST /api/v1/admin/groups/:id/composite-routes`
@@ -34,113 +38,103 @@ Admins can configure routes on a composite group from the group list's
 - `DELETE /api/v1/admin/groups/:id/composite-routes/:route_id`
 - `POST /api/v1/admin/groups/:id/composite-routes/preview`
 
-Each route belongs to one composite group and contains:
+Each route contains:
 
-- `public_model`: model identifier the client sends.
-- `match_type`: `exact` or `prefix`.
-- `target_platform`: concrete provider platform.
-- `upstream_model`: model identifier sent upstream. If omitted, the public
-  model is reused.
+- `public_model`: model identifier sent by the client.
+- `match_type`: `exact` or `prefix`; legacy empty values mean `exact`.
+- `target_platform`: concrete account platform.
+- `upstream_model`: model sent upstream; empty reuses the public model.
 - `endpoint`: `any`, `messages`, `count_tokens`, `responses`,
   `chat_completions`, `embeddings`, `images`, or `gemini`.
 - `priority`: lower values win after match specificity.
-- `enabled`: disabled routes are ignored by runtime resolution but remain
-  visible to admins.
+- `enabled`: disabled routes remain visible to administrators but are not used.
 
-Resolution order is explicit route first, then built-in detection. When more
-than one explicit route matches, exact matches beat prefix matches,
-endpoint-specific routes beat `any`, longer prefixes beat shorter prefixes,
-then lower `priority`, then lower route id.
+Saving validates endpoint compatibility: Gemini native routes target Gemini or
+Antigravity, embeddings target OpenAI, and images target OpenAI or Grok.
 
-For JSON-body endpoints, the gateway rewrites the request `model` field to the
-route's `upstream_model` before dispatch. For Gemini native paths such as
-`/v1beta/models/{model}:generateContent`, the gateway resolves `{model}` and
-the handler forwards the resolved upstream model.
+Matching order is:
 
-Codex Alpha Search and Live requests use the `responses` route domain. Live
-requests resolve the model from `session.model`, including multipart `session`
-payloads, and apply the configured `upstream_model` before dispatch.
-Codex model manifest requests reuse the existing OpenAI account selection and
-failover path within the Composite group.
+1. Exact match before prefix match.
+2. Endpoint-specific route before `any`.
+3. Longer prefix before shorter prefix.
+4. Lower `priority` value.
+5. Round-robin among routes tied on all preceding fields.
 
-Responses WebSocket resolves the first `response.create` model in the
-`responses` route domain (including `any` routes). Only OpenAI and Grok targets
-are supported. The public model remains the admission and response identity;
-the route's upstream model is applied before channel/account mapping. Subsequent
-turns can repeat or omit the public model. Changing it requires reconnecting so
-the gateway can resolve the route and select an account again.
+Round-robin cursors are independent per group, public model, endpoint, and
+candidate route set. Redis provides an atomic cursor shared by all instances,
+with a 24-hour idle expiry. If Redis is unavailable, each process falls back to
+its bounded 1024-entry LRU. Preview reads the current shared candidate without
+advancing the cursor; concurrent traffic can still change the next real selection.
+
+## Same-Named Models
+
+Routes may share a public model:
+
+| Public model | Target | Behavior |
+| --- | --- | --- |
+| `gpt-5` | OpenAI and Kimi | One catalog entry; tied routes share traffic |
+| `openai/gpt-5` | OpenAI | Separate catalog entry |
+| `kimi/gpt-5` | Kimi | Separate catalog entry |
+
+Use provider-prefixed public names when users must select a platform explicitly.
+Use the same unprefixed name with tied routes when the gateway should merge the
+catalog entry and distribute requests.
+
+TypeSafe cannot be tied with other platforms for the same public model because
+it only accepts `/v1/systemone`. Such a conflict returns HTTP 400 and is hidden
+from Codex catalogs. Codex capability metadata also fails closed when tied
+routes have different concrete targets or upstream models.
+
+## Request Processing
+
+1. Authenticate the API key and validate its subscription.
+2. Extract the model from the JSON body, URL, WebSocket `response.create`, or
+   Live `session.model`.
+3. Resolve an explicit route, then legacy account model mapping, then built-in
+   model detection.
+4. Write the concrete target platform and upstream model into the request
+   context and rewrite the outgoing model.
+5. Select and retry accounts within the selected platform.
+6. Record usage and increment subscription quota using the group's pricing.
+
+Route selection currently happens once per request. Lower-priority routes are
+not automatic cross-platform failovers.
+
+For JSON endpoints, the gateway rewrites the request `model`. Native Gemini paths
+resolve the model in `/v1beta/models/{model}:...`. Live and Responses WebSocket
+requests use the `responses` route domain; changing a WebSocket turn's public
+model requires reconnecting.
 
 ## Built-In Detection
 
-Composite routing detects common public model IDs and provider-prefixed IDs:
+Without an explicit route, common names map as follows:
 
-- `claude-*` and `anthropic/claude-*` route to Anthropic.
-- `gemini-*` and `google/gemini-*` route to Gemini.
-- `gpt-*`, `o*`, `codex-*`, `text-embedding-*`, `dall-e-*`, and
-  `openai/*` route to OpenAI.
-- `grok-*` and `xai/grok-*` route to Grok.
-- `kimi-*`, `moonshot-*`, and `k3` route to Kimi.
-- `glm-*` routes to Zhipu GLM.
-- `deepseek-*` routes to DeepSeek.
-- `minimax-*`, `abab*`, and `minimax/*` route to MiniMax.
+- `claude-*` and `anthropic/claude-*` → Anthropic
+- `gemini-*` and `google/gemini-*` → Gemini
+- `gpt-*`, `o*`, `codex-*`, `text-embedding-*`, `dall-e-*`, and `openai/*` → OpenAI
+- `grok-*` and `xai/grok-*` → Grok
+- `kimi-*`, `moonshot-*`, and `k3` → Kimi
+- `glm-*` → Zhipu GLM
+- `deepseek-*` → DeepSeek
+- `minimax-*`, `abab*`, and `minimax/*` → MiniMax
 
-Unknown or ambiguous model names fail closed with a client error instead of
-guessing a provider.
+Unknown or ambiguous names fail closed.
 
-## Admin Workflows
+## Pricing and Subscriptions
 
-- Admins can create a group with platform `composite`.
-- Admins can add, edit, delete, and preview composite model routes.
-- Composite groups can copy accounts from concrete provider groups.
-- Concrete provider accounts can be assigned directly to composite groups from
-  account create/edit and bulk account workflows.
-- Subscription payment plans can bind to a composite group when that group's
-  `subscription_type` is `subscription`. The plan grants access to the
-  composite group; each request is still billed and quota-checked against the
-  resolved concrete provider platform.
-- Channel configuration exposes composite groups in concrete provider sections.
-  The channel `group_ids` payload is still flat; provider-specific model
-  mapping and pricing remain keyed by concrete platform.
+Configure model prices on the group. In a multi-platform group, each pricing
+entry selects a concrete `platform`; `composite` is not a valid pricing target.
+Existing channel prices are copied into groups by migration 250 when a group has
+no custom prices. Group prices take precedence over legacy channel and built-in
+prices.
 
-## Bucket 2 Setup: OpenAI + Claude + Gemini + Grok
+Administrators can bind any active group when assigning a subscription. Daily,
+weekly, and monthly subscription limits are evaluated against the group, while
+usage statistics continue to report the actual account platform.
 
-Use one composite subscription group when one customer-facing plan should expose
-model aliases across OpenAI, Claude, Gemini, and Grok without issuing separate
-keys per provider.
+## Current Limits
 
-1. Create concrete provider groups for the upstream account pools, for example
-   `OpenAI Paid`, `Claude Paid`, `Gemini Paid`, and `Grok Paid`.
-2. Create a `composite` group with `subscription_type` set to `subscription`.
-3. Assign provider accounts directly to the composite group, or copy accounts
-   from the concrete provider groups during group creation.
-4. Add explicit routes for public aliases that should not rely on built-in
-   model detection:
-
-   | Public model | Endpoint | Target platform | Upstream model |
-   | --- | --- | --- | --- |
-   | `all/gpt-5` | `responses` | `openai` | `gpt-5` |
-   | `all/claude-sonnet` | `messages` | `anthropic` | `claude-sonnet-4-6` |
-   | `all/gemini-pro` | `gemini` | `gemini` | `gemini-2.5-pro` |
-   | `all/grok` | `responses` | `grok` | `grok-4.3` |
-
-5. Configure channel pricing and model mapping under the concrete platforms
-   named in each route. Composite routing does not create pricing records.
-6. Create a subscription payment plan for the composite group.
-
-The same composite group can also rely on built-in detection for standard model
-names such as `gpt-*`, `claude-*`, `gemini-*`, and `grok-*`. Explicit routes are
-recommended for bundled plan aliases because they make endpoint, provider, and
-upstream model attribution reviewable in the admin UI.
-
-## Limits
-
-Composite routes choose a concrete provider and upstream model; they do not
-create synthetic model metadata, pricing, or upstream capability records by
-themselves. Keep channel pricing/model mapping configured for the concrete
-provider platforms that the routes target.
-
-This PR intentionally does not implement:
-
-- AUTO smart-routing among multiple providers for the same abstract task.
-- Direct API-key binding to several existing groups without a composite group.
-- Protocol-agnostic provider decoupling or a LiteLLM-style adapter rewrite.
+- No automatic retry on a different platform after route selection.
+- No configurable weighted or failover-only policy beyond priority and tied
+  round-robin.
+- Redis failures degrade round-robin coordination to per-process cursors.

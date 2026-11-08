@@ -20,7 +20,7 @@
             v-for="(m, i) in entry.models.slice(0, 3)"
             :key="i"
             class="inline-flex shrink-0 rounded px-1.5 py-0.5 text-xs"
-            :class="getPlatformTagClass(props.platform || '')"
+            :class="getPlatformTagClass((entry.platform || props.platform) || '')"
           >
             {{ m }}
           </span>
@@ -75,9 +75,20 @@
             </label>
             <ModelTagInput
               :models="entry.models"
-              :platform="props.platform"
+              :platform="(entry.platform || props.platform)"
               @update:models="onModelsUpdate($event)"
               :placeholder="t('admin.channels.form.modelsPlaceholder')"
+              class="mt-1"
+            />
+          </div>
+          <div v-if="props.platform === 'composite'" class="w-40">
+            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ t('admin.groups.form.platform') }}
+            </label>
+            <Select
+              :modelValue="entry.platform"
+              @update:modelValue="emit('update', { ...entry, platform: $event as string })"
+              :options="CONCRETE_PLATFORM_OPTIONS"
               class="mt-1"
             />
           </div>
@@ -309,6 +320,7 @@ import TimePricingSection from './TimePricingSection.vue'
 import type { PricingFormEntry, IntervalFormEntry } from './types'
 import { perTokenToMTok, getPlatformTagClass, isValidPositiveMultiplier, validateReasoningEffortMultipliers } from './types'
 import { REASONING_EFFORT_LEVELS, type ReasoningEffortLevel } from '@/constants/channel'
+import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 import type { BillingMode } from '@/api/admin/channels'
 import channelsAPI from '@/api/admin/channels'
 

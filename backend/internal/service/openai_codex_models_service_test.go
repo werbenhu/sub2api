@@ -3881,3 +3881,30 @@ func TestGPT61SolAPIKeyCatalogContextWindow(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveCodexCompositeModelTargetWithDuplicateRoutes(t *testing.T) {
+	routes := []CompositeModelRoute{
+		{ID: 1, PublicModel: "shared", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformOpenAI, UpstreamModel: "gpt-5", Endpoint: CompositeRouteEndpointResponses, Priority: 100, Enabled: true},
+		{ID: 2, PublicModel: "shared", MatchType: CompositeRouteMatchExact, TargetPlatform: PlatformKimi, UpstreamModel: "k3", Endpoint: CompositeRouteEndpointResponses, Priority: 100, Enabled: true},
+	}
+
+	platform, upstream, resolved := resolveCodexCompositeModelTarget("shared", nil, routes, true)
+	require.False(t, resolved)
+	require.Empty(t, platform)
+	require.Empty(t, upstream)
+	require.Equal(t, "shared", resolveCodexCatalogMetadataModel(PlatformComposite, "shared", nil, routes, true))
+
+	routes[1].Priority = 1
+	platform, upstream, resolved = resolveCodexCompositeModelTarget("shared", nil, routes, true)
+	require.True(t, resolved)
+	require.Equal(t, PlatformKimi, platform)
+	require.Equal(t, "k3", upstream)
+
+	routes[1].Priority = 100
+	routes[1].TargetPlatform = PlatformOpenAI
+	routes[1].UpstreamModel = "gpt-5"
+	platform, upstream, resolved = resolveCodexCompositeModelTarget("shared", nil, routes, true)
+	require.True(t, resolved)
+	require.Equal(t, PlatformOpenAI, platform)
+	require.Equal(t, "gpt-5", upstream)
+}

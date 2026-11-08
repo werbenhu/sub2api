@@ -222,7 +222,7 @@ func (s *adminServiceImpl) PreviewCompositeRoute(ctx context.Context, groupID in
 	if resolver == nil {
 		resolver = NewCompositeRouteResolver(s.compositeRouteRepo)
 	}
-	decision, err := resolver.Resolve(ctx, groupID, input.Model, input.Endpoint)
+	decision, err := resolver.ResolvePreview(ctx, groupID, input.Model, input.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +260,9 @@ func compositeRouteFromInput(groupID int64, input CompositeRouteInput) (*Composi
 	}
 	if !isConcreteRequestPlatform(input.TargetPlatform) {
 		return nil, fmt.Errorf("target_platform must be a concrete provider")
+	}
+	if err := validateCompositeRouteEndpointPlatform(input.Endpoint, input.TargetPlatform); err != nil {
+		return nil, err
 	}
 	if input.Priority == 0 {
 		input.Priority = 100
@@ -380,7 +383,7 @@ func normalizeCreateGroupInputForSimpleMode(input *CreateGroupInput) {
 	}
 	*input = CreateGroupInput{
 		Name: input.Name, Description: input.Description, I18n: input.I18n, Platform: input.Platform,
-		RateMultiplier: 1, SubscriptionType: SubscriptionTypeStandard,
+		RateMultiplier: 1, SubscriptionType: SubscriptionTypeSubscription,
 	}
 }
 
@@ -429,10 +432,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
 	}
 
-	subscriptionType := input.SubscriptionType
-	if subscriptionType == "" {
-		subscriptionType = SubscriptionTypeStandard
-	}
+	subscriptionType := SubscriptionTypeSubscription
 
 	// 限额字段：nil/负数 表示"无限制"，0 表示"不允许用量"，正数表示具体限额
 	dailyLimit := normalizeLimit(input.DailyLimitUSD)
@@ -521,7 +521,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 	// 校验无效请求兜底分组
 	if fallbackOnInvalidRequest != nil {
-		if err := s.validateFallbackGroupOnInvalidRequest(ctx, 0, platform, subscriptionType, *fallbackOnInvalidRequest); err != nil {
+		if err := s.validateFallbackGroupOnInvalidRequest(ctx, 0, platform, *fallbackOnInvalidRequest); err != nil {
 			return nil, err
 		}
 	}
@@ -738,14 +738,11 @@ func (s *adminServiceImpl) validateFallbackGroup(ctx context.Context, currentGro
 
 // validateFallbackGroupOnInvalidRequest 校验无效请求兜底分组的有效性
 // currentGroupID: 当前分组 ID（新建时为 0）
-// platform/subscriptionType: 当前分组的有效平台/订阅类型
+// platform: 当前分组的有效平台
 // fallbackGroupID: 兜底分组 ID
-func (s *adminServiceImpl) validateFallbackGroupOnInvalidRequest(ctx context.Context, currentGroupID int64, platform, subscriptionType string, fallbackGroupID int64) error {
+func (s *adminServiceImpl) validateFallbackGroupOnInvalidRequest(ctx context.Context, currentGroupID int64, platform string, fallbackGroupID int64) error {
 	if platform != PlatformAnthropic && platform != PlatformAntigravity {
 		return fmt.Errorf("invalid request fallback only supported for anthropic or antigravity groups")
-	}
-	if subscriptionType == SubscriptionTypeSubscription {
-		return fmt.Errorf("subscription groups cannot set invalid request fallback")
 	}
 	if currentGroupID > 0 && currentGroupID == fallbackGroupID {
 		return fmt.Errorf("cannot set self as invalid request fallback group")
@@ -757,9 +754,6 @@ func (s *adminServiceImpl) validateFallbackGroupOnInvalidRequest(ctx context.Con
 	}
 	if fallbackGroup.Platform != PlatformAnthropic {
 		return fmt.Errorf("fallback group must be anthropic platform")
-	}
-	if fallbackGroup.SubscriptionType == SubscriptionTypeSubscription {
-		return fmt.Errorf("fallback group cannot be subscription type")
 	}
 	if fallbackGroup.FallbackGroupIDOnInvalidRequest != nil {
 		return fmt.Errorf("fallback group cannot have invalid request fallback configured")
@@ -824,10 +818,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.ModelPricing = modelPricing
 	}
 
-	// 订阅相关字段
-	if input.SubscriptionType != "" {
-		group.SubscriptionType = input.SubscriptionType
-	}
+	group.SubscriptionType = SubscriptionTypeSubscription
 	// 限额字段：nil 表示不修改，负数表示"无限制"，0 表示"不允许用量"，正数表示具体限额。
 	if input.DailyLimitUSD != nil {
 		group.DailyLimitUSD = normalizeLimit(input.DailyLimitUSD)
@@ -987,7 +978,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 	}
 	if fallbackOnInvalidRequest != nil {
-		if err := s.validateFallbackGroupOnInvalidRequest(ctx, id, group.Platform, group.SubscriptionType, *fallbackOnInvalidRequest); err != nil {
+		if err := s.validateFallbackGroupOnInvalidRequest(ctx, id, group.Platform, *fallbackOnInvalidRequest); err != nil {
 			return nil, err
 		}
 	}
@@ -1184,6 +1175,13 @@ func normalizeGroupModelPricing(platform string, pricing []ChannelModelPricing) 
 		}
 		if strings.TrimSpace(out[i].Platform) == "" {
 			out[i].Platform = platform
+		}
+		out[i].Platform = strings.ToLower(strings.TrimSpace(out[i].Platform))
+		if platform == PlatformComposite && !isConcreteRequestPlatform(out[i].Platform) {
+			return nil, infraerrors.BadRequest(
+				"GROUP_MODEL_PRICING_PLATFORM_INVALID",
+				"multi-platform group pricing requires a concrete platform",
+			)
 		}
 		for j := range out[i].Models {
 			out[i].Models[j] = strings.TrimSpace(out[i].Models[j])
@@ -1401,8 +1399,8 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		apiKey.GroupID = &gid
 		apiKey.Group = group
 
-		// 专属标准分组：使用事务保证「添加分组权限」与「更新 API Key」的原子性
-		if group.IsExclusive && !group.IsSubscriptionType() {
+		// 专属分组：使用事务保证「添加分组权限」与「更新 API Key」的原子性
+		if group.IsExclusive {
 			opCtx := ctx
 			var tx *dbent.Tx
 			if s.entClient == nil {
@@ -1487,7 +1485,7 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 		return nil, infraerrors.BadRequest("SAME_GROUP", "old and new group must be different")
 	}
 
-	// 验证新分组存在且为活跃的专属标准分组
+	// 验证新分组存在、活跃、专属，且用户已有目标分组订阅。
 	newGroup, err := s.groupRepo.GetByID(ctx, newGroupID)
 	if err != nil {
 		return nil, err
@@ -1498,8 +1496,14 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 	if !newGroup.IsExclusive {
 		return nil, infraerrors.BadRequest("GROUP_NOT_EXCLUSIVE", "target group is not exclusive")
 	}
-	if newGroup.IsSubscriptionType() {
-		return nil, infraerrors.BadRequest("GROUP_IS_SUBSCRIPTION", "subscription groups are not supported for replacement")
+	if s.userSubRepo == nil {
+		return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
+	}
+	if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, userID, newGroupID); err != nil {
+		if errors.Is(err, ErrSubscriptionNotFound) {
+			return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for the target group")
+		}
+		return nil, err
 	}
 
 	// 事务保证原子性

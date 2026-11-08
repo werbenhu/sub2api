@@ -1066,11 +1066,8 @@ func resolveCodexCatalogMetadataModel(
 		if !compositeRoutesAvailable {
 			return modelID
 		}
-		if route, matched := matchCompositeRoute(compositeRoutes, modelID, CompositeRouteEndpointResponses); matched {
-			if upstreamModel := strings.TrimSpace(route.UpstreamModel); upstreamModel != "" {
-				return upstreamModel
-			}
-			return modelID
+		if _, upstreamModel, resolved := resolveCodexCompositeExplicitTarget(modelID, compositeRoutes); resolved {
+			return upstreamModel
 		}
 		if codexCompositeRouteMatchesModel(compositeRoutes, modelID) {
 			return modelID
@@ -1211,6 +1208,30 @@ func groupCodexModelSupportsSearchTool(
 	return candidates > 0
 }
 
+func resolveCodexCompositeExplicitTarget(modelID string, routes []CompositeModelRoute) (string, string, bool) {
+	candidates := bestCompositeRouteCandidates(compositeRouteCandidates(
+		routes, modelID, CompositeRouteEndpointResponses,
+	))
+	if len(candidates) == 0 {
+		return "", "", false
+	}
+	platform := candidates[0].route.TargetPlatform
+	upstreamModel := strings.TrimSpace(candidates[0].route.UpstreamModel)
+	if upstreamModel == "" {
+		upstreamModel = modelID
+	}
+	for _, candidate := range candidates[1:] {
+		candidateUpstream := strings.TrimSpace(candidate.route.UpstreamModel)
+		if candidateUpstream == "" {
+			candidateUpstream = modelID
+		}
+		if candidate.route.TargetPlatform != platform || candidateUpstream != upstreamModel {
+			return "", "", false
+		}
+	}
+	return platform, upstreamModel, true
+}
+
 func resolveCodexCompositeModelTarget(
 	modelID string,
 	accounts []Account,
@@ -1220,12 +1241,8 @@ func resolveCodexCompositeModelTarget(
 	if !routesAvailable {
 		return "", "", false
 	}
-	if route, matched := matchCompositeRoute(routes, modelID, CompositeRouteEndpointResponses); matched {
-		upstreamModel := strings.TrimSpace(route.UpstreamModel)
-		if upstreamModel == "" {
-			upstreamModel = modelID
-		}
-		return route.TargetPlatform, upstreamModel, true
+	if platform, upstreamModel, resolved := resolveCodexCompositeExplicitTarget(modelID, routes); resolved {
+		return platform, upstreamModel, true
 	}
 	if codexCompositeRouteMatchesModel(routes, modelID) {
 		return "", "", false

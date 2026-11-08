@@ -59,6 +59,7 @@ func securityAuditMediaTestMiddleware(c *gin.Context) {
 		Group: &service.Group{ID: groupID, Name: "media-group", Platform: service.PlatformOpenAI, AllowImageGeneration: true},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 7, Concurrency: 2})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(7, groupID))
 	c.Next()
 }
 

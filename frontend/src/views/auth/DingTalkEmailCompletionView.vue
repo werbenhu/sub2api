@@ -36,7 +36,6 @@ import {
   persistOAuthTokenContext,
   type PendingOAuthExchangeResponse
 } from '@/api/auth'
-import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,7 +97,6 @@ async function handleCreateAccount(payload: PendingOAuthCreateAccountPayload) {
     if (data.access_token) {
       persistOAuthTokenContext(data)
       await authStore.setToken(data.access_token)
-      clearAllAffiliateReferralCodes()
       appStore.showSuccess(t('auth.loginSuccess'))
       await router.replace(redirect)
       return

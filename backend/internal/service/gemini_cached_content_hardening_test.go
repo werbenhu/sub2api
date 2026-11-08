@@ -444,15 +444,22 @@ func TestReserveFixedCharge(t *testing.T) {
 		return svc
 	}
 	reserve := func(svc *BillingCacheService, apiKey *APIKey, group *Group, sub *UserSubscription, amount float64) error {
+		if group == nil {
+			group = &Group{ID: 2, SubscriptionType: SubscriptionTypeSubscription}
+		}
+		if sub == nil {
+			sub = &UserSubscription{ID: 1}
+		}
 		res, err := svc.ReserveFixedCharge(ctx, user, apiKey, group, sub, amount)
 		res.Release()
 		return err
 	}
 
-	t.Run("balance must cover the amount", func(t *testing.T) {
+	t.Run("subscription is required and wallet balance is not checked", func(t *testing.T) {
 		svc := newSvc(&fixedChargeCacheStub{balance: 10})
-		require.NoError(t, reserve(svc, nil, nil, nil, 10))
-		require.ErrorIs(t, reserve(svc, nil, nil, nil, 10.01), ErrInsufficientBalance)
+		_, err := svc.ReserveFixedCharge(ctx, user, nil, nil, nil, 10)
+		require.ErrorIs(t, err, ErrSubscriptionInvalid)
+		require.NoError(t, reserve(svc, nil, nil, nil, 10.01))
 		require.NoError(t, reserve(svc, nil, nil, nil, 0))
 	})
 
@@ -510,9 +517,10 @@ func TestReserveFixedCharge(t *testing.T) {
 		second.Release()
 
 		apiKey := &APIKey{ID: 5, Quota: 110}
-		first, err = svc.ReserveFixedCharge(ctx, user, apiKey, nil, nil, 103.5)
+		unlimitedGroup := &Group{ID: 3, SubscriptionType: SubscriptionTypeSubscription}
+		first, err = svc.ReserveFixedCharge(ctx, user, apiKey, unlimitedGroup, sub, 103.5)
 		require.NoError(t, err)
-		_, err = svc.ReserveFixedCharge(ctx, user, apiKey, nil, nil, 103.5)
+		_, err = svc.ReserveFixedCharge(ctx, user, apiKey, unlimitedGroup, sub, 103.5)
 		require.ErrorIs(t, err, ErrAPIKeyQuotaExhausted)
 		first.Release()
 		for key, reservations := range cache.reserved {
@@ -520,7 +528,7 @@ func TestReserveFixedCharge(t *testing.T) {
 		}
 	})
 
-	t.Run("simple mode skips the check", func(t *testing.T) {
+	t.Run("simple mode uses the same subscription reservation", func(t *testing.T) {
 		cfg := &config.Config{RunMode: config.RunModeSimple}
 		svc := NewBillingCacheService(&fixedChargeCacheStub{}, nil, nil, nil, nil, nil, cfg, nil)
 		t.Cleanup(svc.Stop)

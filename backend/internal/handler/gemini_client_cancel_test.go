@@ -84,6 +84,7 @@ func (f *geminiClientCancelFixture) serve(t *testing.T, route, path, body string
 	router.POST(route, func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyAPIKey), f.apiKey)
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: f.apiKey.UserID, Concurrency: 10})
+		c.Set(string(middleware.ContextKeySubscription), activeTestSubscription(0, 0))
 		call(c)
 	})
 

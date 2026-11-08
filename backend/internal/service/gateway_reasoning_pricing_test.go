@@ -39,7 +39,7 @@ func TestRecordUsage_ReasoningPricingUsesForwardedEffort(t *testing.T) {
 			if platform == PlatformAnthropic {
 				svc := newGatewayRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 				svc.resolver = NewModelPricingResolver(nil, svc.billingService)
-				require.NoError(t, svc.RecordUsage(context.Background(), &RecordUsageInput{
+				require.NoError(t, svc.RecordUsage(context.Background(), &RecordUsageInput{Subscription: &UserSubscription{ID: 1},
 					Result: &ForwardResult{
 						RequestID: "reasoning_pricing", Model: model, Duration: time.Second,
 						Usage:           ClaudeUsage{InputTokens: 100, OutputTokens: 50},
@@ -50,7 +50,7 @@ func TestRecordUsage_ReasoningPricingUsesForwardedEffort(t *testing.T) {
 			} else {
 				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 				svc.resolver = NewModelPricingResolver(nil, svc.billingService)
-				require.NoError(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+				require.NoError(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 					Result: &OpenAIForwardResult{
 						RequestID: "reasoning_pricing", Model: model, Duration: time.Second,
 						Usage:           OpenAIUsage{InputTokens: 100, OutputTokens: 50},
@@ -64,7 +64,7 @@ func TestRecordUsage_ReasoningPricingUsesForwardedEffort(t *testing.T) {
 			require.InDelta(t, 0.15, usageRepo.lastLog.ActualCost, 1e-12)
 			require.Equal(t, forwarded, *usageRepo.lastLog.ReasoningEffort)
 			require.Equal(t, requested, *usageRepo.lastLog.RequestedReasoningEffort)
-			require.InDelta(t, 0.15, userRepo.lastAmount, 1e-12)
+			require.InDelta(t, 0.15, subRepo.lastAmount, 1e-12)
 		})
 	}
 }

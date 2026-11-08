@@ -136,7 +136,7 @@ func (s *GroupService) Create(ctx context.Context, req CreateGroupRequest) (*Gro
 		RateMultiplier:       req.RateMultiplier,
 		IsExclusive:          req.IsExclusive,
 		Status:               StatusActive,
-		SubscriptionType:     SubscriptionTypeStandard,
+		SubscriptionType:     SubscriptionTypeSubscription,
 		AllowImageGeneration: req.AllowImageGeneration,
 		ImageCountBilling:    req.ImageCountBilling,
 		ImageRateIndependent: req.ImageRateIndependent,

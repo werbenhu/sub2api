@@ -34,7 +34,7 @@ export interface NotifyEmailEntry {
 
 // ==================== User & Auth Types ====================
 
-export type UserAuthProvider = 'email' | 'linuxdo' | 'oidc' | 'wechat' | 'github' | 'google' | 'dingtalk'
+export type UserAuthProvider = 'email' | 'oidc' | 'github' | 'google' | 'dingtalk'
 
 export interface UserAuthBindingStatus {
   bound?: boolean
@@ -81,9 +81,7 @@ export interface User {
   auth_bindings?: Partial<Record<UserAuthProvider, boolean | UserAuthBindingStatus>>
   identity_bindings?: Partial<Record<UserAuthProvider, boolean | UserAuthBindingStatus>>
   email_bound?: boolean
-  linuxdo_bound?: boolean
   oidc_bound?: boolean
-  wechat_bound?: boolean
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
   frozen_balance?: number // Balance currently held by async batch jobs
@@ -140,35 +138,7 @@ export interface RegisterRequest {
   turnstile_token?: string
   tencent_captcha_ticket?: string
   tencent_captcha_randstr?: string
-  promo_code?: string
   invitation_code?: string
-  aff_code?: string
-}
-
-export interface AffiliateInvitee {
-  user_id: number
-  email: string
-  username: string
-  created_at?: string
-  total_rebate: number
-}
-
-export interface UserAffiliateDetail {
-  user_id: number
-  aff_code: string
-  inviter_id?: number | null
-  aff_count: number
-  aff_quota: number
-  aff_frozen_quota: number
-  aff_history_quota: number
-  /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
-  effective_rebate_rate_percent: number
-  invitees: AffiliateInvitee[]
-}
-
-export interface AffiliateTransferResponse {
-  transferred_quota: number
-  balance: number
 }
 
 export interface SendVerifyCodeRequest {
@@ -214,7 +184,6 @@ export interface PublicSettings {
   force_email_on_third_party_signup: boolean
   registration_email_suffix_whitelist: string[]
   registration_email_domain_quota_enabled?: boolean
-  promo_code_enabled: boolean
   password_reset_enabled: boolean
   invitation_code_enabled: boolean
   login_agreement_enabled?: boolean
@@ -241,18 +210,12 @@ export interface PublicSettings {
   home_content: string
   compact_home_enabled: boolean
   hide_ccs_import_button: boolean
-  payment_enabled: boolean
   risk_control_enabled: boolean
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
-  linuxdo_oauth_enabled: boolean
   dingtalk_oauth_enabled?: boolean
-  wechat_oauth_enabled: boolean
-  wechat_oauth_open_enabled?: boolean
-  wechat_oauth_mp_enabled?: boolean
-  wechat_oauth_mobile_enabled?: boolean
   oidc_oauth_enabled: boolean
   oidc_oauth_provider_name: string
   github_oauth_enabled: boolean
@@ -278,16 +241,12 @@ export interface PublicSettings {
   channel_monitor_show_quota?: boolean
   /** When true, user monitor hides the user ranking tab and /users payload. */
   channel_monitor_hide_user_ranking?: boolean
-  available_channels_enabled: boolean
   /** When false, the whole user-facing subscription surface is hidden. Default true. */
   subscription_enabled: boolean
-  /** Mirrors payment config BALANCE_PAYMENT_DISABLED; true = balance top-up closed (subscription-only site). */
-  payment_balance_disabled: boolean
   model_plaza_enabled: boolean
   model_plaza_require_auth: boolean
   plugin_management_enabled: boolean
   service_quota_enabled: boolean
-  affiliate_enabled: boolean
   allow_user_view_error_requests?: boolean
   /** True when the deployment configures MCP_PUBLIC_URL; MCP is disabled otherwise. */
   mcp_enabled?: boolean
@@ -2414,47 +2373,6 @@ export interface UserAttributeValuesMap {
   [attributeId: number]: string
 }
 
-// ==================== Promo Code Types ====================
-
-export interface PromoCode {
-  id: number
-  code: string
-  bonus_amount: number
-  max_uses: number
-  used_count: number
-  status: 'active' | 'disabled'
-  expires_at: string | null
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface PromoCodeUsage {
-  id: number
-  promo_code_id: number
-  user_id: number
-  bonus_amount: number
-  used_at: string
-  user?: User
-}
-
-export interface CreatePromoCodeRequest {
-  code?: string
-  bonus_amount: number
-  max_uses?: number
-  expires_at?: number | null
-  notes?: string
-}
-
-export interface UpdatePromoCodeRequest {
-  code?: string
-  bonus_amount?: number
-  max_uses?: number
-  status?: 'active' | 'disabled'
-  expires_at?: number | null
-  notes?: string
-}
-
 // ==================== TOTP (2FA) Types ====================
 
 export interface TotpStatus {
@@ -2548,9 +2466,6 @@ export interface UpdateScheduledTestPlanRequest {
   max_results?: number
   auto_recover?: boolean
 }
-
-// Payment types
-export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
 
 export type {
   PlatformQuotaItem,

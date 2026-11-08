@@ -157,3 +157,15 @@ func TestOpenAIResponsesWebSocket_CompositeSessionModelSwitchRequiresReconnect(t
 		secondTurnCloseExpected: true, closeReason: "model switch requires reconnect",
 	})
 }
+
+func TestOpenAIResponsesWebSocket_CompositeRouteConflictIsPolicyViolation(t *testing.T) {
+	resolver := service.NewCompositeRouteResolver(&compositeWSRouteRepo{routes: []service.CompositeModelRoute{
+		{ID: 1, GroupID: 4201, PublicModel: "public-alias", MatchType: service.CompositeRouteMatchExact, TargetPlatform: service.PlatformTypeSafe, Enabled: true},
+		{ID: 2, GroupID: 4201, PublicModel: "public-alias", MatchType: service.CompositeRouteMatchExact, TargetPlatform: service.PlatformOpenAI, Enabled: true},
+	}})
+	runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+		firstPayload: `{"type":"response.create","model":"public-alias"}`,
+		group:        compositeWSGroup(), compositeResolver: resolver,
+		firstFrameCloseExpected: true, closeReason: "cannot share public model", closeStatus: coderws.StatusPolicyViolation,
+	})
+}

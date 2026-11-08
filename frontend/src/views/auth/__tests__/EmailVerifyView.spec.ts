@@ -561,7 +561,6 @@ describe('EmailVerifyView', () => {
       JSON.stringify({
         email: 'fresh@example.com',
         password: 'secret-123',
-        aff_code: 'AFF123',
       })
     )
     apiClientPostMock.mockResolvedValue({
@@ -593,7 +592,6 @@ describe('EmailVerifyView', () => {
       email: 'fresh@example.com',
       password: 'secret-123',
       verify_code: '123456',
-      aff_code: 'AFF123',
     })
     expect(persistOAuthTokenContextMock).toHaveBeenCalledWith({
       access_token: 'oauth-access-token',
@@ -806,7 +804,6 @@ describe('EmailVerifyView', () => {
       JSON.stringify({
         email: 'normal@example.com',
         password: 'secret-456',
-        promo_code: 'PROMO',
         invitation_code: 'INVITE',
       })
     )
@@ -835,7 +832,6 @@ describe('EmailVerifyView', () => {
       turnstile_token: undefined,
       tencent_captcha_ticket: undefined,
       tencent_captcha_randstr: undefined,
-      promo_code: 'PROMO',
       invitation_code: 'INVITE',
     })
     expect(apiClientPostMock).not.toHaveBeenCalled()

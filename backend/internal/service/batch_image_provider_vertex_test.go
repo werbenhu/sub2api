@@ -120,7 +120,7 @@ func TestVertexProvider_SubmitUploadsJSONLAndCreatesBatchPredictionJob(t *testin
 	store := &fakeVertexObjectStore{}
 	provider := newTestVertexProvider(vertexClient, store)
 
-	got, err := provider.Submit(context.Background(), &BatchImageJob{BatchID: "imgbatch_abc123", Model: "gemini-3.1-flash-image"}, vertexServiceAccount(), validVertexBatchInput())
+	got, err := provider.Submit(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_abc123", Model: "gemini-3.1-flash-image"}, vertexServiceAccount(), validVertexBatchInput())
 	require.NoError(t, err)
 
 	require.Equal(t, "gs://managed-bucket/batch-image/test/imgbatch_abc123/input/requests.jsonl", store.uploadURI)
@@ -186,7 +186,7 @@ func TestVertexProvider_OpenResultReturnsCombinedJSONLStream(t *testing.T) {
 		},
 	}
 	provider := newTestVertexProvider(&fakeVertexBatchClient{}, store)
-	r, contentType, err := provider.OpenResult(context.Background(), &BatchImageJob{ProviderOutputRef: &output}, vertexServiceAccount())
+	r, contentType, err := provider.OpenResult(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), ProviderOutputRef: &output}, vertexServiceAccount())
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -199,7 +199,7 @@ func TestVertexProvider_OpenResultReturnsCombinedJSONLStream(t *testing.T) {
 func TestVertexProvider_OpenResultMissingObjectsReturnsTypedError(t *testing.T) {
 	output := "gs://managed-bucket/batch-image/test/imgbatch_abc123/output/"
 	provider := newTestVertexProvider(&fakeVertexBatchClient{}, &fakeVertexObjectStore{})
-	_, _, err := provider.OpenResult(context.Background(), &BatchImageJob{ProviderOutputRef: &output}, vertexServiceAccount())
+	_, _, err := provider.OpenResult(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), ProviderOutputRef: &output}, vertexServiceAccount())
 	require.Error(t, err)
 	require.Equal(t, "VERTEX_RESULT_OBJECTS_MISSING", infraerrors.Reason(err))
 }
@@ -219,7 +219,7 @@ func TestVertexProvider_CleanupDeletesOnlyManagedPaths(t *testing.T) {
 	store := &fakeVertexObjectStore{}
 	provider := newTestVertexProvider(&fakeVertexBatchClient{}, store)
 
-	err := provider.Cleanup(context.Background(), &BatchImageJob{BatchID: "imgbatch_abc123", ProviderInputRef: &input, ProviderOutputRef: &output}, vertexServiceAccount(), CleanupTargetAll)
+	err := provider.Cleanup(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_abc123", ProviderInputRef: &input, ProviderOutputRef: &output}, vertexServiceAccount(), CleanupTargetAll)
 	require.NoError(t, err)
 	require.Equal(t, []string{input}, store.deletedObjects)
 	require.Equal(t, []string{output}, store.deletedPrefixes)
@@ -229,7 +229,7 @@ func TestVertexProvider_CleanupRejectsUnsafePath(t *testing.T) {
 	input := "gs://other-bucket/batch-image/test/imgbatch_abc123/input/requests.jsonl"
 	provider := newTestVertexProvider(&fakeVertexBatchClient{}, &fakeVertexObjectStore{})
 
-	err := provider.Cleanup(context.Background(), &BatchImageJob{BatchID: "imgbatch_abc123", ProviderInputRef: &input}, vertexServiceAccount(), CleanupTargetInput)
+	err := provider.Cleanup(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_abc123", ProviderInputRef: &input}, vertexServiceAccount(), CleanupTargetInput)
 	require.ErrorIs(t, err, ErrBatchImageProviderUnsafeCleanupPath)
 }
 
@@ -315,7 +315,7 @@ func vertexServiceAccount() *Account {
 }
 
 func vertexJobWithName(name string) *BatchImageJob {
-	return &BatchImageJob{ProviderJobName: &name}
+	return &BatchImageJob{SubscriptionID: i64p(1), ProviderJobName: &name}
 }
 
 type fakeVertexBatchClient struct {

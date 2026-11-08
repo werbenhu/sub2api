@@ -737,46 +737,26 @@ func (s *BillingCacheService) IncrementUserPlatformQuotaUsage(userID int64, plat
 // 统一检查方法
 // ============================================
 
-// CheckBillingEligibility 检查用户是否有资格发起请求
-// 余额模式：检查缓存余额 > 0
-// 订阅模式：检查缓存用量未超过限额（Group限额从参数传入）
+// CheckBillingEligibility 检查订阅额度、API Key 限额和分组限流。
 // platform 为请求的目标平台（如 "anthropic"），传空串 "" 时跳过 user × platform quota 检查。
 func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, platform string) error {
-	// 简易模式默认跳过所有计费检查. An explicit key-window opt-in keeps
-	// balance/subscription/platform checks bypassed while enforcing the three
-	// API-key monetary windows from the database source of truth.
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		if s.cfg.SimpleModeKeyRateLimitEnabled {
-			return s.checkSimpleModeAPIKeyRateLimits(ctx, apiKey)
-		}
-		return nil
-	}
 	if s.circuitBreaker != nil && !s.circuitBreaker.Allow() {
 		return ErrBillingServiceUnavailable
 	}
 
-	// 判断计费模式
-	isSubscriptionMode := group != nil && group.IsSubscriptionType() && subscription != nil
-
-	if isSubscriptionMode {
-		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
-			return err
-		}
-	} else {
-		if err := s.checkBalanceEligibility(ctx, user.ID); err != nil {
-			return err
-		}
+	isSubscriptionMode := group != nil && group.IsSubscriptionType()
+	if !isSubscriptionMode || subscription == nil {
+		return ErrSubscriptionInvalid
+	}
+	if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
+		return err
 	}
 
-	// user × platform quota 仅在 standard（余额）模式生效；订阅模式豁免
-	if !isSubscriptionMode {
-		if err := s.checkUserPlatformQuotaEligibility(ctx, user.ID, platform); err != nil {
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && s.cfg.SimpleModeKeyRateLimitEnabled {
+		if err := s.checkSimpleModeAPIKeyRateLimits(ctx, apiKey); err != nil {
 			return err
 		}
-	}
-
-	// Check API Key rate limits (applies to both billing modes)
-	if apiKey != nil && apiKey.HasRateLimits() {
+	} else if apiKey != nil && apiKey.HasRateLimits() {
 		if err := s.checkAPIKeyRateLimits(ctx, apiKey); err != nil {
 			return err
 		}
@@ -791,28 +771,16 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 }
 
 // ReserveFixedCharge 为扣费前即可确定金额的费用（倍率后 USD，如显式缓存存储费）做准入并登记在途预留。
-//
-// 余额模式要求缓存余额覆盖 amount 及用户的其他在途预留；订阅模式要求日 / 周 / 月剩余额度覆盖 amount；
-// API Key 总额度与限速窗口同样叠加 amount。订阅与 API Key 的用量取库中权威值，并叠加同一订阅 / Key 上其他
-// 在途预留：先登记本次预留再读用量，并发的两笔费用中后读用量的一方必然看到另一方（预留或已落库的扣费）。
+// 订阅日 / 周 / 月额度、API Key 总额度与限速窗口会叠加其他在途费用。
 // 返回的句柄可能为 nil（未登记任何预留）；调用方须在 handler 结束时调用 HandlerDone，预留在计费任务落库后释放。
-// 须在 CheckBillingEligibility 通过后调用；简易模式不校验。
+// 须在 CheckBillingEligibility 通过后调用。
 func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, amount float64) (*InflightReservation, error) {
 	if user == nil || amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
 		return nil, nil
 	}
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		return nil, nil
-	}
-	subscriptionBill := group != nil && group.IsSubscriptionType() && subscription != nil
-	if !subscriptionBill {
-		balance, err := s.GetUserBalance(ctx, user.ID)
-		if err != nil {
-			return nil, ErrBillingServiceUnavailable.WithCause(err)
-		}
-		if balance < amount {
-			return nil, ErrInsufficientBalance
-		}
+	subscriptionBill := group != nil && group.IsSubscriptionType()
+	if !subscriptionBill || subscription == nil {
+		return nil, ErrSubscriptionInvalid
 	}
 	res, err := s.reserveInflight(ctx, user, group, subscription, amount, false, false)
 	if err != nil {
@@ -825,7 +793,7 @@ func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User
 	if apiKey != nil && (apiKey.Quota > 0 || apiKey.HasRateLimits()) {
 		res, apiKeyPending = s.reserveInflightScope(ctx, res, user.ID, inflightAPIKeyScope(apiKey.ID), amount)
 	}
-	if subscriptionBill {
+	if group.HasDailyLimit() || group.HasWeeklyLimit() || group.HasMonthlyLimit() {
 		err = s.checkFixedChargeSubscription(ctx, user.ID, group, amount+subscriptionPending)
 	}
 	if err == nil && apiKey != nil {

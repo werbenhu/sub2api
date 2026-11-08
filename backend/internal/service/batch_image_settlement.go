@@ -106,8 +106,8 @@ func (s *BatchImageSettlementService) Settle(ctx context.Context, batchID string
 	if job.AccountID == nil || *job.AccountID <= 0 {
 		return nil, ErrBatchImageSettlementMissingAccountID
 	}
-	// 重试耗尽检查必须先于各类可重复失败的校验（counts/manifest/定价/超冻结），
-	// 否则这些错误路径会绕过耗尽出口，settling job 无限 requeue、冻结余额永不释放。
+	// 重试耗尽检查必须先于各类可重复失败的校验（counts/manifest/定价/超预估），
+	// 否则这些错误路径会绕过耗尽出口，settling job 会无限 requeue。
 	if isBatchImageSettlementRetryExhausted(job) {
 		return nil, s.failExhaustedSettlement(ctx, job, "settlement retry limit reached: "+batchImageDerefString(job.LastErrorCode))
 	}
@@ -149,7 +149,7 @@ func (s *BatchImageSettlementService) Settle(ctx context.Context, batchID string
 		return nil, ErrBatchImageSettlementCostExceedsHold
 	}
 
-	if err := captureBatchImageBalanceHold(ctx, s.BillingRepo, job, actualCost, manifestHash); err != nil {
+	if err := captureBatchImageSubscription(ctx, s.BillingRepo, job, actualCost, manifestHash); err != nil {
 		msg := truncateBatchImageMessage(err.Error(), batchImageMaxErrorMessageLength)
 		if failErr := s.recordSettlementFailure(ctx, job, "SETTLEMENT_BILLING_FAILED", msg); failErr != nil {
 			return nil, failErr
@@ -220,7 +220,7 @@ func (s *BatchImageSettlementService) failExhaustedSettlement(ctx context.Contex
 	// 释放指纹必须与其余所有释放点（processor/Cancel/recovery）一致地使用 RequestHash：
 	// 它们共享同一 request id，payloadHash 不同会触发 ErrUsageBillingRequestConflict，
 	// 导致后续 Cancel/重试永远失败、terminal job 变成毒消息。
-	if err := releaseBatchImageBalanceHold(ctx, s.BillingRepo, job, batchImageDerefString(job.RequestHash)); err != nil {
+	if err := releaseBatchImageSubscription(ctx, s.BillingRepo, job, batchImageDerefString(job.RequestHash)); err != nil {
 		msg := truncateBatchImageMessage(err.Error(), batchImageMaxErrorMessageLength)
 		if _, recordErr := s.Repo.SetBatchImageJobSettlementFailed(ctx, job.BatchID, "SETTLEMENT_RELEASE_FAILED", msg); recordErr != nil {
 			logger.L().Warn("batch_image.settlement_release_failure_record_failed",
@@ -261,6 +261,7 @@ func (s *BatchImageSettlementService) recordUsageLog(ctx context.Context, job *B
 	usageLog := &UsageLog{
 		UserID:                job.UserID,
 		APIKeyID:              *job.APIKeyID,
+		SubscriptionID:        job.SubscriptionID,
 		AccountID:             *job.AccountID,
 		RequestID:             strings.TrimSpace(requestID),
 		Model:                 job.Model,
@@ -273,7 +274,7 @@ func (s *BatchImageSettlementService) recordUsageLog(ctx context.Context, job *B
 		ActualCost:            actualCost,
 		RateMultiplier:        job.GroupRateMultiplier * job.BatchDiscountMultiplier,
 		AccountRateMultiplier: &accountRateMultiplier,
-		BillingType:           BillingTypeBalance,
+		BillingType:           BillingTypeSubscription,
 		RequestType:           RequestTypeSync,
 		BillingMode:           &billingMode,
 		ImageSize:             &imageSize,

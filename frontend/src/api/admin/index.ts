@@ -1,16 +1,8 @@
-/**
- * Admin API barrel export
- * Centralized exports for all admin API modules
- */
-
 import dashboardAPI from './dashboard'
 import usersAPI from './users'
 import groupsAPI from './groups'
 import accountsAPI from './accounts'
 import proxiesAPI from './proxies'
-import redeemAPI from './redeem'
-import promoAPI from './promo'
-import announcementsAPI from './announcements'
 import settingsAPI from './settings'
 import systemAPI from './system'
 import subscriptionsAPI from './subscriptions'
@@ -30,25 +22,17 @@ import tlsFingerprintProfileAPI from './tlsFingerprintProfile'
 import channelsAPI from './channels'
 import channelMonitorAPI from './channelMonitor'
 import channelMonitorTemplateAPI from './channelMonitorTemplate'
-import adminPaymentAPI from './payment'
-import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import auditAPI from './audit'
 import pluginsAPI from './plugins'
 
-/**
- * Unified admin API object for convenient access
- */
 export const adminAPI = {
   dashboard: dashboardAPI,
   users: usersAPI,
   groups: groupsAPI,
   accounts: accountsAPI,
   proxies: proxiesAPI,
-  redeem: redeemAPI,
-  promo: promoAPI,
-  announcements: announcementsAPI,
   settings: settingsAPI,
   system: systemAPI,
   subscriptions: subscriptionsAPI,
@@ -68,12 +52,10 @@ export const adminAPI = {
   channels: channelsAPI,
   channelMonitor: channelMonitorAPI,
   channelMonitorTemplate: channelMonitorTemplateAPI,
-  payment: adminPaymentAPI,
-  affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   audit: auditAPI,
-  plugins: pluginsAPI
+  plugins: pluginsAPI,
 }
 
 export {
@@ -82,9 +64,6 @@ export {
   groupsAPI,
   accountsAPI,
   proxiesAPI,
-  redeemAPI,
-  promoAPI,
-  announcementsAPI,
   settingsAPI,
   systemAPI,
   subscriptionsAPI,
@@ -104,17 +83,14 @@ export {
   channelsAPI,
   channelMonitorAPI,
   channelMonitorTemplateAPI,
-  adminPaymentAPI,
-  affiliatesAPI,
   riskControlAPI,
   adminComplianceAPI,
   auditAPI,
-  pluginsAPI
+  pluginsAPI,
 }
 
 export default adminAPI
 
-// Re-export types used by components
 export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
 export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
@@ -125,5 +101,5 @@ export type {
   PluginInstallation,
   PluginCompatibility,
   PluginUISession,
-  PluginTestResult
+  PluginTestResult,
 } from './plugins'

@@ -15,6 +15,15 @@ type simpleModeRateLimitLoaderStub struct {
 	err  error
 }
 
+type simpleModeSubscriptionRepoStub struct {
+	UserSubscriptionRepository
+	subscription *UserSubscription
+}
+
+func (s *simpleModeSubscriptionRepoStub) GetActiveByUserIDAndGroupID(context.Context, int64, int64) (*UserSubscription, error) {
+	return s.subscription, nil
+}
+
 func (s *simpleModeRateLimitLoaderStub) GetRateLimitData(context.Context, int64) (*APIKeyRateLimitData, error) {
 	return s.data, s.err
 }
@@ -29,9 +38,9 @@ func TestCheckBillingEligibilitySimpleModeKeyRateLimitsAreOptInAndDBAuthoritativ
 		wantErr   error
 	}{
 		{
-			name:    "disabled preserves simple mode bypass",
+			name:    "disabled still requires subscription and uses standard key checks",
 			enabled: false,
-			data:    &APIKeyRateLimitData{Usage5h: 100},
+			data:    &APIKeyRateLimitData{Usage5h: 9},
 		},
 		{
 			name:    "enabled allows below all windows",
@@ -75,13 +84,16 @@ func TestCheckBillingEligibilitySimpleModeKeyRateLimitsAreOptInAndDBAuthoritativ
 				RunMode:                       config.RunModeSimple,
 				SimpleModeKeyRateLimitEnabled: tt.enabled,
 			}
+			subscription := &UserSubscription{ID: 8, Status: SubscriptionStatusActive, ExpiresAt: now.Add(time.Hour)}
 			svc := &BillingCacheService{
 				cfg:                   cfg,
 				apiKeyRateLimitLoader: &simpleModeRateLimitLoaderStub{data: tt.data, err: tt.loaderErr},
+				subRepo:               &simpleModeSubscriptionRepoStub{subscription: subscription},
 			}
 			key := &APIKey{ID: 42, RateLimit5h: 10, RateLimit1d: 20, RateLimit7d: 30}
+			group := &Group{ID: 5}
 
-			err := svc.CheckBillingEligibility(context.Background(), &User{ID: 7, Balance: 0}, key, nil, nil, "")
+			err := svc.CheckBillingEligibility(context.Background(), &User{ID: 7}, key, group, subscription, "")
 			if tt.wantErr == nil {
 				require.NoError(t, err)
 				return

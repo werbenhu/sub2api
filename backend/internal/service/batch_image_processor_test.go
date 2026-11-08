@@ -98,7 +98,7 @@ func TestBatchImageResultIndexer_WritesCountsAndReplacesItems(t *testing.T) {
 	}, "\n") + "\n"
 	repo := newFakeBatchImageRepository()
 	outputRef := "files/output"
-	job := &BatchImageJob{BatchID: "imgbatch_index", ProviderOutputRef: &outputRef}
+	job := &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_index", ProviderOutputRef: &outputRef}
 	provider := &fakeProcessorProvider{result: output}
 
 	result, err := (&BatchImageResultIndexer{Repo: repo}).Index(context.Background(), job, provider, &Account{})
@@ -134,7 +134,7 @@ func TestBatchImageResultIndexer_WritesCountsAndReplacesItems(t *testing.T) {
 func TestBatchImageResultIndexer_ReconcilesMissingAndUnknownCustomIDs(t *testing.T) {
 	repo := newFakeBatchImageRepository()
 	outputRef := "files/output"
-	job := &BatchImageJob{BatchID: "imgbatch_reconcile", ProviderOutputRef: &outputRef, ItemCount: 3}
+	job := &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_reconcile", ProviderOutputRef: &outputRef, ItemCount: 3}
 	// 预创建提交时的 pending 条目（提交流程的行为）。
 	require.NoError(t, repo.BulkCreateBatchImageItems(context.Background(), []CreateBatchImageItemParams{
 		{JobID: job.BatchID, CustomID: "a", Status: BatchImageItemStatusPending},
@@ -181,7 +181,7 @@ func TestBatchImageResultIndexer_EmptyInvalidAndDuplicateOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := newFakeBatchImageRepository()
-			_, err := (&BatchImageResultIndexer{Repo: repo}).Index(context.Background(), &BatchImageJob{BatchID: "imgbatch_bad"}, &fakeProcessorProvider{result: tt.body}, &Account{})
+			_, err := (&BatchImageResultIndexer{Repo: repo}).Index(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_bad"}, &fakeProcessorProvider{result: tt.body}, &Account{})
 			require.ErrorIs(t, err, tt.want)
 			require.Empty(t, repo.items["imgbatch_bad"])
 		})
@@ -195,7 +195,7 @@ func TestBatchImageProviderProcessor_ValidationAndTerminalCases(t *testing.T) {
 
 	t.Run("terminal job returns without provider call", func(t *testing.T) {
 		repo := newFakeBatchImageRepository()
-		repo.jobs["imgbatch_done"] = &BatchImageJob{BatchID: "imgbatch_done", Status: BatchImageJobStatusFailed}
+		repo.jobs["imgbatch_done"] = &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_done", Status: BatchImageJobStatusFailed}
 		provider := &fakeProcessorProvider{}
 		got, err := (&BatchImageProviderProcessor{
 			Repo: repo, ProviderRegistry: NewBatchImageProviderRegistry(provider), AccountResolver: &fakeBatchImageAccountResolver{account: &Account{}},
@@ -207,21 +207,21 @@ func TestBatchImageProviderProcessor_ValidationAndTerminalCases(t *testing.T) {
 
 	t.Run("missing provider", func(t *testing.T) {
 		repo := newFakeBatchImageRepository()
-		repo.jobs["imgbatch_missing_provider"] = &BatchImageJob{BatchID: "imgbatch_missing_provider", Status: BatchImageJobStatusSubmitted, Provider: "missing", AccountID: &accountID, ProviderJobName: &providerJob}
+		repo.jobs["imgbatch_missing_provider"] = &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_missing_provider", Status: BatchImageJobStatusSubmitted, Provider: "missing", AccountID: &accountID, ProviderJobName: &providerJob}
 		_, err := (&BatchImageProviderProcessor{Repo: repo, ProviderRegistry: NewBatchImageProviderRegistry(), AccountResolver: &fakeBatchImageAccountResolver{account: &Account{}}}).Process(ctx, "imgbatch_missing_provider")
 		require.ErrorIs(t, err, ErrBatchImageUnsupportedProvider)
 	})
 
 	t.Run("missing account id", func(t *testing.T) {
 		repo := newFakeBatchImageRepository()
-		repo.jobs["imgbatch_missing_account"] = &BatchImageJob{BatchID: "imgbatch_missing_account", Status: BatchImageJobStatusSubmitted, Provider: "fake", ProviderJobName: &providerJob}
+		repo.jobs["imgbatch_missing_account"] = &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_missing_account", Status: BatchImageJobStatusSubmitted, Provider: "fake", ProviderJobName: &providerJob}
 		_, err := (&BatchImageProviderProcessor{Repo: repo, ProviderRegistry: NewBatchImageProviderRegistry(&fakeProcessorProvider{}), AccountResolver: &fakeBatchImageAccountResolver{account: &Account{}}}).Process(ctx, "imgbatch_missing_account")
 		require.ErrorIs(t, err, ErrBatchImageMissingAccountID)
 	})
 
 	t.Run("missing provider job name", func(t *testing.T) {
 		repo := newFakeBatchImageRepository()
-		repo.jobs["imgbatch_missing_name"] = &BatchImageJob{BatchID: "imgbatch_missing_name", Status: BatchImageJobStatusSubmitted, Provider: "fake", AccountID: &accountID}
+		repo.jobs["imgbatch_missing_name"] = &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_missing_name", Status: BatchImageJobStatusSubmitted, Provider: "fake", AccountID: &accountID}
 		_, err := (&BatchImageProviderProcessor{Repo: repo, ProviderRegistry: NewBatchImageProviderRegistry(&fakeProcessorProvider{}), AccountResolver: &fakeBatchImageAccountResolver{account: &Account{}}}).Process(ctx, "imgbatch_missing_name")
 		require.ErrorIs(t, err, ErrBatchImageMissingProviderJobName)
 	})
@@ -232,7 +232,7 @@ func TestBatchImageProviderProcessor_StatusFlow(t *testing.T) {
 	accountID := int64(10)
 	providerJob := "providers/job"
 	newJob := func(status string) *BatchImageJob {
-		return &BatchImageJob{BatchID: "imgbatch_flow", Status: status, Provider: "fake", AccountID: &accountID, ProviderJobName: &providerJob}
+		return &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_flow", Status: status, Provider: "fake", AccountID: &accountID, ProviderJobName: &providerJob}
 	}
 
 	t.Run("running status updates and requeues", func(t *testing.T) {
@@ -312,8 +312,6 @@ func TestBatchImageProviderProcessor_StatusFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.Terminal)
 		require.Equal(t, BatchImageJobStatusCancelled, repo.jobs["imgbatch_flow"].Status)
-		require.Len(t, billing.releases, 1)
-		require.Equal(t, BatchImageReleaseRequestID("imgbatch_flow"), billing.releases[0].RequestID)
 	})
 }
 
@@ -404,6 +402,7 @@ func (r *fakeBatchImageRepository) CreateBatchImageJob(_ context.Context, params
 		BatchID:                 params.BatchID,
 		UserID:                  params.UserID,
 		APIKeyID:                params.APIKeyID,
+		SubscriptionID:          params.SubscriptionID,
 		AccountID:               params.AccountID,
 		Status:                  params.Status,
 		Provider:                params.Provider,

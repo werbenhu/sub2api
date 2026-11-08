@@ -156,20 +156,8 @@
             @start="handleOAuthStart"
           />
 
-          <LinuxDoOAuthSection
-            v-if="linuxdoOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
           <DingTalkOAuthSection
             v-if="dingtalkOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-          <WechatOAuthSection
-            v-if="wechatOAuthEnabled"
             :disabled="authActionDisabled"
             :show-divider="false"
             @start="handleOAuthStart"
@@ -215,10 +203,8 @@ import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
-import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import DingTalkOAuthSection from '@/components/auth/DingTalkOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
-import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
 import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
@@ -229,13 +215,11 @@ import {
   buildOAuthLoginStartURL,
   getPublicSettings,
   isTotp2FARequired,
-  isWeChatWebOAuthEnabled,
   startOAuthLogin,
   type OAuthLoginStart
 } from '@/api/auth'
 import type { LoginAgreementDocument, TotpLoginResponse } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
 
 const { t } = useI18n()
 const LOGIN_AGREEMENT_STORAGE_KEY = 'sub2api_login_agreement_consent'
@@ -264,9 +248,7 @@ const aliyunCaptchaEnabled = ref<boolean>(false)
 const aliyunCaptchaSceneId = ref<string>('')
 const aliyunCaptchaPrefix = ref<string>('')
 const aliyunCaptchaRegion = ref<string>('cn')
-const linuxdoOAuthEnabled = ref<boolean>(false)
 const dingtalkOAuthEnabled = ref<boolean>(false)
-const wechatOAuthEnabled = ref<boolean>(false)
 const backendModeEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
 const oidcOAuthProviderName = ref<string>('OIDC')
@@ -334,9 +316,7 @@ const authActionDisabled = computed(
 const showOAuthLogin = computed(
   () =>
     !backendModeEnabled.value &&
-    (linuxdoOAuthEnabled.value ||
-      dingtalkOAuthEnabled.value ||
-      wechatOAuthEnabled.value ||
+    (dingtalkOAuthEnabled.value ||
       oidcOAuthEnabled.value ||
       githubOAuthEnabled.value ||
       googleOAuthEnabled.value)
@@ -371,9 +351,7 @@ onMounted(async () => {
     aliyunCaptchaSceneId.value = settings.aliyun_captcha_scene_id || ''
     aliyunCaptchaPrefix.value = settings.aliyun_captcha_prefix || ''
     aliyunCaptchaRegion.value = settings.aliyun_captcha_region || 'cn'
-    linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
     dingtalkOAuthEnabled.value = settings.dingtalk_oauth_enabled ?? false
-    wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
     backendModeEnabled.value = settings.backend_mode_enabled
     oidcOAuthEnabled.value = settings.oidc_oauth_enabled
     oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
@@ -575,9 +553,6 @@ async function handleLogin(): Promise<void> {
       isLoading.value = false
       return
     }
-
-    // Show success toast
-    clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
 
     // Redirect to dashboard or intended route
@@ -646,7 +621,6 @@ async function handle2FAVerify(code: string): Promise<void> {
 
     // Close modal and show success
     show2FAModal.value = false
-    clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
 
     // Redirect to dashboard or intended route

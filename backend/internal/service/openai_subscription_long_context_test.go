@@ -51,7 +51,8 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolSubscriptionLongContext(t *test
 						t.Run(name, func(t *testing.T) {
 							usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 							userRepo := &openAIRecordUsageUserRepoStub{}
-							svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+							subRepo := &openAIRecordUsageSubRepoStub{}
+							svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 							if catalog {
 								svc.billingService = NewBillingService(svc.cfg, newStubPricingServiceFromJSON(t, `{
 									"gpt-6.1-sol": {"litellm_provider": "openai", "mode": "chat",
@@ -70,7 +71,7 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolSubscriptionLongContext(t *test
 							}
 							account := &Account{ID: 3, Platform: PlatformOpenAI, Type: accountType,
 								Extra: map[string]any{openAILongContextBillingEnabledKey: accountEnabled}}
-							err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+							err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 								Result: &OpenAIForwardResult{
 									RequestID: name, Model: "gpt-6.1-sol", ServiceTier: &tier, Duration: time.Second,
 									// 普通输入只有 200k，由缓存使总上下文越过 272k。
@@ -97,8 +98,8 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolSubscriptionLongContext(t *test
 							wantTotal := (0.458*inputFactor + 0.02*outputFactor) * tierFactor
 							require.InDelta(t, wantTotal, log.TotalCost, 1e-12)
 							require.InDelta(t, wantTotal*1.1, log.ActualCost, 1e-12)
-							require.Equal(t, 1, userRepo.deductCalls)
-							require.InDelta(t, wantTotal*1.1, userRepo.lastAmount, 1e-12)
+							require.Zero(t, userRepo.deductCalls)
+							require.InDelta(t, wantTotal*1.1, subRepo.lastAmount, 1e-12)
 							if groupMode != "无分组" {
 								wantStats := 0.478 * tierFactor
 								if accountType == AccountTypeAPIKey && accountEnabled {
@@ -137,7 +138,7 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolUsesCredentialAndUpstreamModel(
 				ID: parentID, Platform: PlatformOpenAI, Type: tt.parentType,
 				Extra: map[string]any{openAILongContextBillingEnabledKey: true},
 			}}
-			err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+			err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 				Result: &OpenAIForwardResult{RequestID: tt.name, Model: tt.model, UpstreamModel: tt.upstream,
 					Usage: OpenAIUsage{InputTokens: 300000, OutputTokens: 2000}, Duration: time.Second},
 				APIKey: openAIRecordUsageAPIKeyWithGroup(svc, 1, true), User: &User{ID: 2},
@@ -182,7 +183,7 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolLongContextBoundary(t *testing.
 			t.Run(fmt.Sprintf("%s/%d", accountType, totalInput), func(t *testing.T) {
 				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 				svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
-				err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+				err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 					Result: &OpenAIForwardResult{RequestID: "boundary", Model: "gpt-6.1-sol", Duration: time.Second,
 						Usage: OpenAIUsage{InputTokens: totalInput, OutputTokens: 1000}},
 					APIKey: openAIRecordUsageAPIKeyWithGroup(svc, 1, true), User: &User{ID: 2},
@@ -207,7 +208,8 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolLongContextBoundary(t *testing.
 func TestOpenAIGatewayServiceRecordUsage_GPT61SolExemptionSurvivesRepricing(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
-	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{}, nil)
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
 	apiKey := openAIRecordUsageAPIKeyWithGroup(svc, 1, true)
 	apiKey.GroupID = i64p(1)
 	apiKey.Group.Platform = PlatformOpenAI
@@ -215,7 +217,7 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolExemptionSurvivesRepricing(t *t
 	apiKey.Group.FreeOpenAIFast = true
 	svc.channelService = newTestChannelServiceForStats(t, &Channel{ID: 1, Status: StatusActive}, 1, PlatformOpenAI)
 	tier := "priority"
-	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 		Result: &OpenAIForwardResult{
 			RequestID: "repricing", Model: "gpt-6-sol", UpstreamModel: "gpt-6.1-sol", BillingModel: "gpt-6-sol",
 			UpstreamResponseModel: "gpt-6.1-sol", ServiceTier: &tier, Duration: time.Second,
@@ -231,7 +233,7 @@ func TestOpenAIGatewayServiceRecordUsage_GPT61SolExemptionSurvivesRepricing(t *t
 	const standardCost = 220000*2e-6 + 80000*0.1e-6 + 2000*10e-6
 	require.InDelta(t, standardCost*2, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, standardCost*1.1, usageRepo.lastLog.ActualCost, 1e-12)
-	require.InDelta(t, standardCost*1.1, userRepo.lastAmount, 1e-12)
+	require.InDelta(t, standardCost*1.1, subRepo.lastAmount, 1e-12)
 	require.False(t, usageRepo.lastLog.LongContextBillingApplied)
 	require.NotNil(t, usageRepo.lastLog.AccountStatsCost)
 	require.InDelta(t, standardCost*2, *usageRepo.lastLog.AccountStatsCost, 1e-12)

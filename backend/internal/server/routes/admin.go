@@ -48,9 +48,6 @@ func RegisterAdminRoutes(
 		// 账号管理
 		registerAccountRoutes(admin, h, stepUpAuth)
 
-		// 公告管理
-		registerAnnouncementRoutes(admin, h)
-
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
 
@@ -68,12 +65,6 @@ func RegisterAdminRoutes(
 
 		// 代理管理
 		registerProxyRoutes(admin, h, stepUpAuth)
-
-		// 卡密管理
-		registerRedeemCodeRoutes(admin, h)
-
-		// 优惠码管理
-		registerPromoCodeRoutes(admin, h)
 
 		// 系统设置
 		registerSettingsRoutes(admin, h, stepUpAuth)
@@ -126,9 +117,6 @@ func RegisterAdminRoutes(
 
 		// 独立提示词输入审计
 		registerPromptAuditRoutes(admin, h)
-
-		// 邀请返利（专属用户管理）
-		registerAffiliateRoutes(admin, h)
 
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
@@ -788,13 +776,8 @@ func registerPluginRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	channels := admin.Group("/channels")
 	{
-		channels.GET("", h.Admin.Channel.List)
 		channels.GET("/model-pricing", h.Admin.Channel.GetModelDefaultPricing)
 		channels.GET("/pricing/sync-models", h.Admin.Channel.SyncPricingModels)
-		channels.GET("/:id", h.Admin.Channel.GetByID)
-		channels.POST("", h.Admin.Channel.Create)
-		channels.PUT("/:id", h.Admin.Channel.Update)
-		channels.DELETE("/:id", h.Admin.Channel.Delete)
 	}
 }
 

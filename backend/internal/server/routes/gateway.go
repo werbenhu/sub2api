@@ -8,6 +8,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -547,6 +548,19 @@ func getGroupPlatform(c *gin.Context) string {
 	return apiKey.Group.Platform
 }
 
+func abortCompositeRouteResolution(c *gin.Context, err error) {
+	status := http.StatusInternalServerError
+	errorType := "server_error"
+	message := "Failed to resolve composite model route"
+	if infraerrors.IsBadRequest(err) {
+		status = http.StatusBadRequest
+		errorType = "invalid_request_error"
+		message = infraerrors.Message(err)
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
+	}
+	c.AbortWithStatusJSON(status, gin.H{"error": gin.H{"type": errorType, "message": message}})
+}
+
 func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver) gin.HandlerFunc {
 	if resolver == nil {
 		resolver = service.NewCompositeRouteResolver(nil)
@@ -586,8 +600,7 @@ func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver)
 		if model != "" {
 			decision, err := resolver.Resolve(c.Request.Context(), apiKey.Group.ID, model, compositeRouteEndpointForPath(c.Request.URL.Path))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "server_error", "message": "Failed to resolve composite model route"}})
-				c.Abort()
+				abortCompositeRouteResolution(c, err)
 				return
 			}
 			// 含 OAuth 账号的跨平台歧义是分组配置错误：拒绝而不是放行。否则未解析的
@@ -625,8 +638,14 @@ func compositeGeminiTargetPlatformMiddleware(resolver *service.CompositeRouteRes
 			if model != "" {
 				decision, err := resolver.Resolve(c.Request.Context(), apiKey.Group.ID, model, service.CompositeRouteEndpointGemini)
 				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "server_error", "message": "Failed to resolve composite model route"}})
-					c.Abort()
+					abortCompositeRouteResolution(c, err)
+					return
+				}
+				if decision.OAuthAmbiguous() {
+					abortCompositeRouteResolution(c, infraerrors.BadRequest(
+						"COMPOSITE_ROUTE_CONFIG_INVALID",
+						decision.AmbiguousMessage(),
+					))
 					return
 				}
 				if decision.Matched {

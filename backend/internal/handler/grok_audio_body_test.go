@@ -16,7 +16,7 @@ import (
 
 func TestGrokVoiceRequestBodyMemoryOverload(t *testing.T) {
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billing := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billing := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
 	t.Cleanup(billing.Stop)
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},
@@ -31,9 +31,10 @@ func TestGrokVoiceRequestBodyMemoryOverload(t *testing.T) {
 			router.Use(middleware.RequestBodyLimit(1024, pkghttputil.NewBodyMemoryBudget(1)))
 			router.Use(func(c *gin.Context) {
 				c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
-					Group: &service.Group{Platform: service.PlatformGrok},
+					Group: &service.Group{ID: 2, Platform: service.PlatformGrok},
 					User:  &service.User{ID: 1},
 				})
+				c.Set(string(middleware.ContextKeySubscription), activeTestSubscription(1, 2))
 				c.Next()
 			})
 			// A normal Grok group without an allowlist reaches the handler before

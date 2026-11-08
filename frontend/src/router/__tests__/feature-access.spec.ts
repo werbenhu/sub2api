@@ -23,7 +23,6 @@ const appStore = vi.hoisted(() => ({
   backendModeEnabled: false,
   publicSettingsLoaded: false,
   cachedPublicSettings: null as null | {
-    payment_enabled?: boolean
     risk_control_enabled?: boolean
     subscription_enabled?: boolean
     custom_menu_items?: []
@@ -78,14 +77,6 @@ vi.mock('@/composables/useRoutePrefetch', () => ({
   }),
 }))
 
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
-
 function runGuard(meta: Record<string, unknown>, path: string) {
   if (!routerHarness.guard) {
     throw new Error('router guard was not registered')
@@ -120,28 +111,7 @@ describe('feature route guard', () => {
     appStore.fetchPublicSettings.mockReset()
   })
 
-  it('waits for the first public-settings request before deciding payment access', async () => {
-    const deferred = createDeferred<{ payment_enabled: boolean }>()
-    appStore.fetchPublicSettings.mockImplementation(async () => {
-      const settings = await deferred.promise
-      appStore.cachedPublicSettings = settings
-      appStore.publicSettingsLoaded = true
-      return settings
-    })
-
-    const { navigation, next } = runGuard({ requiresPayment: true }, '/purchase')
-
-    await vi.waitFor(() => expect(appStore.fetchPublicSettings).toHaveBeenCalledTimes(1))
-    expect(next).not.toHaveBeenCalled()
-
-    deferred.resolve({ payment_enabled: true })
-    await navigation
-    expect(next).toHaveBeenCalledOnce()
-    expect(next).toHaveBeenCalledWith()
-  })
-
   it.each([
-    ['payment', { requiresPayment: true }, '/purchase'],
     ['risk control', { requiresRiskControl: true }, '/admin/risk-control'],
     ['subscription', { requiresSubscription: true }, '/subscriptions'],
   ])('does not treat a failed %s settings load as explicitly disabled', async (_name, meta, path) => {
@@ -157,7 +127,6 @@ describe('feature route guard', () => {
   })
 
   it.each([
-    ['payment', { requiresPayment: true }, { payment_enabled: false }, '/dashboard'],
     [
       'risk control',
       { requiresRiskControl: true },

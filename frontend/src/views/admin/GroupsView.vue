@@ -647,10 +647,7 @@
           v-model:over-limit="createForm.max_reasoning_effort_over_limit"
           v-model:mappings="createForm.reasoning_effort_mappings"
         />
-        <div
-          v-if="createForm.subscription_type !== 'subscription'"
-          data-tour="group-form-exclusive"
-        >
+        <div data-tour="group-form-exclusive">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.form.exclusive") }}
@@ -708,20 +705,7 @@
 
         <!-- Subscription Configuration -->
         <div class="mt-4 border-t pt-4">
-          <div>
-            <label class="input-label">{{
-              t("admin.groups.subscription.type")
-            }}</label>
-            <Select
-              v-model="createForm.subscription_type"
-              :options="subscriptionTypeOptions"
-            />
-            <p class="input-hint">
-              {{ t("admin.groups.subscription.typeHint") }}
-            </p>
-          </div>
-
-          <!-- Subscription limits (only show when subscription type is selected) -->
+          <!-- Subscription limits -->
           <div
             v-if="createForm.subscription_type === 'subscription'"
             class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
@@ -1496,7 +1480,7 @@
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
             </div>
-            <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing)">
+            <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing, createForm.platform)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
             </button>
           </div>
@@ -2299,7 +2283,7 @@
           v-model:over-limit="editForm.max_reasoning_effort_over_limit"
           v-model:mappings="editForm.reasoning_effort_mappings"
         />
-        <div v-if="editForm.subscription_type !== 'subscription'">
+        <div>
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
               {{ t("admin.groups.form.exclusive") }}
@@ -2361,21 +2345,7 @@
 
         <!-- Subscription Configuration -->
         <div class="mt-4 border-t pt-4">
-          <div>
-            <label class="input-label">{{
-              t("admin.groups.subscription.type")
-            }}</label>
-            <Select
-              v-model="editForm.subscription_type"
-              :options="subscriptionTypeOptions"
-              :disabled="true"
-            />
-            <p class="input-hint">
-              {{ t("admin.groups.subscription.typeNotEditable") }}
-            </p>
-          </div>
-
-          <!-- Subscription limits (only show when subscription type is selected) -->
+          <!-- Subscription limits -->
           <div
             v-if="editForm.subscription_type === 'subscription'"
             class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
@@ -3160,7 +3130,7 @@
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
             </div>
-            <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing)">
+            <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing, editForm.platform)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
             </button>
           </div>
@@ -4415,7 +4385,8 @@ import {
 const supportsLivePlatform = (platform: string): boolean =>
   platform === "openai" || platform === "composite";
 
-const emptyGroupPricing = (): PricingFormEntry => ({
+const emptyGroupPricing = (platform: string): PricingFormEntry => ({
+  platform,
   models: [],
   billing_mode: "token",
   input_price: null,
@@ -4431,13 +4402,14 @@ const emptyGroupPricing = (): PricingFormEntry => ({
   time_pricing: createDefaultTimePricingForm(),
 });
 
-const addGroupPricing = (entries: PricingFormEntry[]) =>
-  entries.push(emptyGroupPricing());
+const addGroupPricing = (entries: PricingFormEntry[], platform: string) =>
+  entries.push(emptyGroupPricing(platform === "composite" ? "openai" : platform));
 
 const groupPricingFromAPI = (
   pricing: ChannelModelPricing[] | undefined,
 ): PricingFormEntry[] =>
   (pricing || []).map((entry) => ({
+    platform: entry.platform,
     models: entry.models || [],
     billing_mode: entry.billing_mode || "token",
     input_price: perTokenToMTok(entry.input_price),
@@ -4462,7 +4434,7 @@ const groupPricingToAPI = (
   pricing
     .filter((entry) => entry.models.length > 0)
     .map((entry) => ({
-      platform,
+      platform: entry.platform || platform,
       models: entry.models,
       billing_mode: entry.billing_mode,
       input_price: mTokToPerToken(entry.input_price),
@@ -4695,11 +4667,6 @@ const compositeRouteMatchOptions = computed(() => [
 const editStatusOptions = computed(() => [
   { value: "active", label: t("admin.accounts.status.active") },
   { value: "inactive", label: t("admin.accounts.status.inactive") },
-]);
-
-const subscriptionTypeOptions = computed(() => [
-  { value: "standard", label: t("admin.groups.subscription.standard") },
-  { value: "subscription", label: t("admin.groups.subscription.subscription") },
 ]);
 
 // 降级分组选项（创建时）- 仅包含 anthropic 平台且未启用 claude_code_only 的分组
@@ -4979,7 +4946,7 @@ const createForm = reactive({
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
-  subscription_type: "standard" as SubscriptionType,
+  subscription_type: "subscription" as SubscriptionType,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
@@ -5346,7 +5313,7 @@ const editForm = reactive({
   rate_multiplier: 1.0,
   is_exclusive: false,
   status: "active" as "active" | "inactive",
-  subscription_type: "standard" as SubscriptionType,
+  subscription_type: "subscription" as SubscriptionType,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
@@ -5822,7 +5789,7 @@ const closeCreateModal = () => {
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
-  createForm.subscription_type = "standard";
+  createForm.subscription_type = "subscription";
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
   createForm.monthly_limit_usd = null;
@@ -6112,7 +6079,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
-  editForm.subscription_type = group.subscription_type || "standard";
+  editForm.subscription_type = "subscription";
   editForm.daily_limit_usd = group.daily_limit_usd;
   editForm.weekly_limit_usd = group.weekly_limit_usd;
   editForm.monthly_limit_usd = group.monthly_limit_usd;

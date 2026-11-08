@@ -266,7 +266,7 @@ func TestSettingService_UpdateSettings_DefaultSubscriptions_ValidGroup(t *testin
 	}, got)
 }
 
-func TestSettingService_UpdateSettings_DefaultSubscriptions_RejectsNonSubscriptionGroup(t *testing.T) {
+func TestSettingService_UpdateSettings_DefaultSubscriptions_AcceptsLegacyStandardGroup(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	groupReader := &defaultSubGroupReaderStub{
 		byID: map[int64]*Group{
@@ -281,9 +281,8 @@ func TestSettingService_UpdateSettings_DefaultSubscriptions_RejectsNonSubscripti
 			{GroupID: 12, ValidityDays: 7},
 		},
 	})
-	require.Error(t, err)
-	require.Equal(t, "DEFAULT_SUBSCRIPTION_GROUP_INVALID", infraerrors.Reason(err))
-	require.Nil(t, repo.updates)
+	require.NoError(t, err)
+	require.NotNil(t, repo.updates)
 }
 
 func TestSettingService_UpdateSettings_DefaultSubscriptions_RejectsNotFoundGroup(t *testing.T) {

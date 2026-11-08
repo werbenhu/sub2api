@@ -48,14 +48,14 @@ describe('resolveFeatureFlag', () => {
   it('reads an explicit boolean from the given settings object', () => {
     expect(resolveFeatureFlag({ subscription_enabled: false } as PublicSettings, FeatureFlags.subscription)).toBe(false)
     expect(resolveFeatureFlag({ subscription_enabled: true } as PublicSettings, FeatureFlags.subscription)).toBe(true)
-    expect(resolveFeatureFlag({ available_channels_enabled: true } as PublicSettings, FeatureFlags.availableChannels)).toBe(true)
+    expect(resolveFeatureFlag({ model_plaza_enabled: true } as PublicSettings, FeatureFlags.modelPlaza)).toBe(true)
   })
 
   it('falls back to the declared mode when settings are missing or the key is absent', () => {
     expect(resolveFeatureFlag(undefined, FeatureFlags.subscription)).toBe(true)
     expect(resolveFeatureFlag(null, FeatureFlags.subscription)).toBe(true)
     expect(resolveFeatureFlag({} as PublicSettings, FeatureFlags.subscription)).toBe(true)
-    expect(resolveFeatureFlag({} as PublicSettings, FeatureFlags.availableChannels)).toBe(false)
+    expect(resolveFeatureFlag({} as PublicSettings, FeatureFlags.modelPlaza)).toBe(false)
   })
 
   it('backs isFeatureFlagEnabled with the same resolution', () => {

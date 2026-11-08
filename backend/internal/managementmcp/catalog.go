@@ -86,7 +86,6 @@ func ToolCatalog() []ToolSpec {
 		catalogTool("user_get_profile", "Get your profile, balance and account limits. Always uses the authenticated user.", "GET", "/user/profile", nil, nil),
 		catalogTool("user_get_platform_quotas", "Get your spending quota and usage windows for each platform.", "GET", "/user/platform-quotas", nil, nil),
 		catalogTool("user_list_groups", "List the groups available to your API keys, including platform and pricing information.", "GET", "/groups/available", nil, nil),
-		catalogTool("user_list_channels", "List channels and supported models visible to you. Returns an empty list when channel discovery is disabled.", "GET", "/channels/available", nil, nil),
 		catalogTool("user_list_api_keys", "List your API key metadata and limits with pagination. Existing key secrets are omitted.", "GET", "/keys", keyList, nil),
 		catalogTool("user_get_api_key", "Get one of your API keys by ID, including status and limits. The key secret is omitted.", "GET", "/keys/:id", nil, nil),
 		catalogTool("user_create_api_key", "Create an API key owned by you. Returns the newly created secret once in this tool result; store it securely.", "POST", "/keys", nil, keyCreate),

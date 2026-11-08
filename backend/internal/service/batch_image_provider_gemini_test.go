@@ -108,7 +108,7 @@ func TestGeminiProvider_SubmitUploadsJSONLThenCreatesBatch(t *testing.T) {
 	}
 	provider := NewGeminiAPIBatchImageProvider(client)
 
-	got, err := provider.Submit(context.Background(), &BatchImageJob{BatchID: "imgbatch_123", Model: "gemini-3.1-flash-image"}, geminiAPIKeyAccount("sk-secret"), validGeminiBatchInput())
+	got, err := provider.Submit(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), BatchID: "imgbatch_123", Model: "gemini-3.1-flash-image"}, geminiAPIKeyAccount("sk-secret"), validGeminiBatchInput())
 	require.NoError(t, err)
 	require.Equal(t, []string{"upload", "create"}, client.calls)
 	require.Equal(t, "files/input-jsonl", got.ProviderInputRef)
@@ -181,7 +181,7 @@ func TestGeminiProvider_OpenResultStreamsResultFile(t *testing.T) {
 	provider := NewGeminiAPIBatchImageProvider(client)
 
 	outputRef := "files/output-jsonl"
-	r, contentType, err := provider.OpenResult(context.Background(), &BatchImageJob{ProviderOutputRef: &outputRef}, geminiAPIKeyAccount("sk-secret"))
+	r, contentType, err := provider.OpenResult(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), ProviderOutputRef: &outputRef}, geminiAPIKeyAccount("sk-secret"))
 	require.NoError(t, err)
 	defer r.Close()
 
@@ -206,11 +206,11 @@ func TestGeminiProvider_CleanupDeletesRefsOnlyWhenPresent(t *testing.T) {
 	client := &fakeGeminiBatchClient{}
 	provider := NewGeminiAPIBatchImageProvider(client)
 
-	err := provider.Cleanup(context.Background(), &BatchImageJob{ProviderInputRef: &inputRef, ProviderOutputRef: &outputRef}, geminiAPIKeyAccount("sk-secret"), CleanupTargetAll)
+	err := provider.Cleanup(context.Background(), &BatchImageJob{SubscriptionID: i64p(1), ProviderInputRef: &inputRef, ProviderOutputRef: &outputRef}, geminiAPIKeyAccount("sk-secret"), CleanupTargetAll)
 	require.NoError(t, err)
 	require.Equal(t, []string{"files/input", "files/output"}, client.deletedFiles)
 
-	err = provider.Cleanup(context.Background(), &BatchImageJob{}, geminiAPIKeyAccount("sk-secret"), CleanupTargetAll)
+	err = provider.Cleanup(context.Background(), &BatchImageJob{SubscriptionID: i64p(1)}, geminiAPIKeyAccount("sk-secret"), CleanupTargetAll)
 	require.NoError(t, err)
 	require.Equal(t, []string{"files/input", "files/output"}, client.deletedFiles)
 }
@@ -276,7 +276,7 @@ func geminiAPIKeyAccount(apiKey string) *Account {
 }
 
 func jobWithProviderName(name string) *BatchImageJob {
-	return &BatchImageJob{ProviderJobName: &name}
+	return &BatchImageJob{SubscriptionID: i64p(1), ProviderJobName: &name}
 }
 
 type fakeGeminiBatchClient struct {

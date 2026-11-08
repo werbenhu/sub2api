@@ -58,6 +58,7 @@ func TestSeedanceHandlerLifecycleAndOwnership(t *testing.T) {
 		switch other {
 		case "user":
 			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 11, Concurrency: 5})
+			c.Set(string(middleware.ContextKeySubscription), activeTestSubscription(0, 0))
 		case "key":
 			key.ID = 21
 		case "group":

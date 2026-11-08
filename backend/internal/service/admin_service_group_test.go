@@ -236,10 +236,10 @@ func TestAdminServiceSimpleModeNormalizesAllUnsupportedCreateFieldsDirectly(t *t
 	require.Same(t, repo.created, created)
 	require.Equal(t, CreateGroupInput{
 		Name: "simple", Description: "allowed", Platform: PlatformAnthropic,
-		RateMultiplier: 1, SubscriptionType: SubscriptionTypeStandard,
+		RateMultiplier: 1, SubscriptionType: SubscriptionTypeSubscription,
 	}, *input)
 	require.Equal(t, 1.0, created.RateMultiplier)
-	require.Equal(t, SubscriptionTypeStandard, created.SubscriptionType)
+	require.Equal(t, SubscriptionTypeSubscription, created.SubscriptionType)
 	require.False(t, created.IsExclusive)
 	require.Nil(t, created.FallbackGroupID)
 	require.Empty(t, created.ModelPricing)
@@ -1212,7 +1212,7 @@ func TestAdminService_UpdateGroup_PeakRateValidation(t *testing.T) {
 	}
 }
 
-func TestAdminService_UpdateGroup_ClearsPeakRateWhenChangingToStandard(t *testing.T) {
+func TestAdminService_UpdateGroup_KeepsPeakRateForSubscription(t *testing.T) {
 	existingGroup := &Group{
 		ID:                 1,
 		Name:               "existing-group",
@@ -1233,11 +1233,11 @@ func TestAdminService_UpdateGroup_ClearsPeakRateWhenChangingToStandard(t *testin
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	require.NotNil(t, repo.updated)
-	require.Equal(t, SubscriptionTypeStandard, repo.updated.SubscriptionType)
-	require.False(t, repo.updated.PeakRateEnabled)
-	require.Equal(t, "", repo.updated.PeakStart)
-	require.Equal(t, "", repo.updated.PeakEnd)
-	require.Equal(t, 1.0, repo.updated.PeakRateMultiplier)
+	require.Equal(t, SubscriptionTypeSubscription, repo.updated.SubscriptionType)
+	require.True(t, repo.updated.PeakRateEnabled)
+	require.Equal(t, "14:00", repo.updated.PeakStart)
+	require.Equal(t, "18:00", repo.updated.PeakEnd)
+	require.Equal(t, 3.0, repo.updated.PeakRateMultiplier)
 }
 
 func TestAdminService_CreateGroup_NormalizesMessagesDispatchModelConfig(t *testing.T) {
@@ -1710,7 +1710,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsUnsupportedPlatfo
 	require.Nil(t, repo.created)
 }
 
-func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsSubscription(t *testing.T) {
+func TestAdminService_CreateGroup_InvalidRequestFallbackAllowsSubscription(t *testing.T) {
 	fallbackID := int64(10)
 	repo := &groupRepoStubForInvalidRequestFallback{
 		groups: map[int64]*Group{
@@ -1726,9 +1726,8 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsSubscription(t *t
 		SubscriptionType:                SubscriptionTypeSubscription,
 		FallbackGroupIDOnInvalidRequest: &fallbackID,
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "subscription groups cannot set invalid request fallback")
-	require.Nil(t, repo.created)
+	require.NoError(t, err)
+	require.NotNil(t, repo.created)
 }
 
 func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *testing.T) {
@@ -1746,11 +1745,6 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *
 			name:        "antigravity_target",
 			fallback:    &Group{ID: 10, Platform: PlatformAntigravity, SubscriptionType: SubscriptionTypeStandard},
 			wantMessage: "fallback group must be anthropic platform",
-		},
-		{
-			name:        "subscription_group",
-			fallback:    &Group{ID: 10, Platform: PlatformAnthropic, SubscriptionType: SubscriptionTypeSubscription},
-			wantMessage: "fallback group cannot be subscription type",
 		},
 		{
 			name: "nested_fallback",
@@ -1871,7 +1865,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackPlatformMismatch(t *test
 	require.Nil(t, repo.updated)
 }
 
-func TestAdminService_UpdateGroup_InvalidRequestFallbackSubscriptionMismatch(t *testing.T) {
+func TestAdminService_UpdateGroup_InvalidRequestFallbackAllowsSubscription(t *testing.T) {
 	fallbackID := int64(10)
 	existing := &Group{
 		ID:                              1,
@@ -1892,9 +1886,8 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackSubscriptionMismatch(t *
 	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		SubscriptionType: SubscriptionTypeSubscription,
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "subscription groups cannot set invalid request fallback")
-	require.Nil(t, repo.updated)
+	require.NoError(t, err)
+	require.NotNil(t, repo.updated)
 }
 
 func TestAdminService_UpdateGroup_InvalidRequestFallbackClearsOnZero(t *testing.T) {
@@ -1926,7 +1919,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackClearsOnZero(t *testing.
 	require.Nil(t, repo.updated.FallbackGroupIDOnInvalidRequest)
 }
 
-func TestAdminService_UpdateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *testing.T) {
+func TestAdminService_UpdateGroup_InvalidRequestFallbackAllowsSubscriptionTarget(t *testing.T) {
 	fallbackID := int64(10)
 	existing := &Group{
 		ID:               1,
@@ -1946,9 +1939,8 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *
 	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		FallbackGroupIDOnInvalidRequest: &fallbackID,
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "fallback group cannot be subscription type")
-	require.Nil(t, repo.updated)
+	require.NoError(t, err)
+	require.NotNil(t, repo.updated)
 }
 
 func TestAdminService_UpdateGroup_InvalidRequestFallbackSetSuccess(t *testing.T) {
@@ -2108,6 +2100,34 @@ func TestAdminService_UpdateAndDeleteCompositeRouteRequireRouteOwnership(t *test
 	err = svc.DeleteCompositeRoute(context.Background(), 7, 11)
 	require.NoError(t, err)
 	require.Equal(t, []int64{11}, routeRepo.deleted)
+}
+
+func TestAdminService_CompositeRouteValidatesEndpointPlatform(t *testing.T) {
+	routeRepo := &compositeRouteRepoStubForAdmin{
+		routes: []CompositeModelRoute{{ID: 11, GroupID: 7, Enabled: true}},
+	}
+	svc := &adminServiceImpl{
+		groupRepo:          &groupRepoStubForAdmin{getByID: &Group{ID: 7, Platform: PlatformComposite}},
+		compositeRouteRepo: routeRepo,
+	}
+	for _, tc := range []struct {
+		endpoint string
+		platform string
+	}{
+		{CompositeRouteEndpointGemini, PlatformOpenAI},
+		{CompositeRouteEndpointEmbeddings, PlatformKimi},
+		{CompositeRouteEndpointImages, PlatformAnthropic},
+	} {
+		input := CompositeRouteInput{
+			PublicModel: "shared", TargetPlatform: tc.platform, Endpoint: tc.endpoint, Enabled: true,
+		}
+		_, err := svc.CreateCompositeRoute(context.Background(), 7, input)
+		require.Equal(t, "COMPOSITE_ROUTE_CONFIG_INVALID", infraerrors.Reason(err))
+		_, err = svc.UpdateCompositeRoute(context.Background(), 7, 11, input)
+		require.Equal(t, "COMPOSITE_ROUTE_CONFIG_INVALID", infraerrors.Reason(err))
+	}
+	require.Nil(t, routeRepo.created)
+	require.Nil(t, routeRepo.updated)
 }
 
 func TestAdminService_PreviewCompositeRouteUsesExplicitRoutes(t *testing.T) {

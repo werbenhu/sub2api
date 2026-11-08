@@ -569,16 +569,6 @@ function mountView() {
   });
 }
 
-async function openPaymentTab(wrapper: ReturnType<typeof mountView>) {
-  const paymentTabButton = wrapper
-    .findAll("button")
-    .find((node) => node.text().includes("admin.settings.tabs.payment"));
-
-  expect(paymentTabButton).toBeDefined();
-  await paymentTabButton?.trigger("click");
-  await flushPromises();
-}
-
 async function openSecurityTab(wrapper: ReturnType<typeof mountView>) {
   const securityTabButton = wrapper
     .findAll("button")
@@ -802,16 +792,6 @@ describe("admin SettingsView payment visible method controls", () => {
       public_ip_rpm: 300,
     });
     expect(showSuccess).toHaveBeenCalled();
-  });
-
-  it("does not render legacy visible payment method controls", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-
-    expect(wrapper.text()).not.toContain("可见方式");
-    expect(wrapper.text()).not.toContain("支付来源");
   });
 
   it("shows valid passkey RP configuration and persists the sign-in toggle", async () => {
@@ -1065,161 +1045,6 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
-  it("loads, edits, and saves recharge bonus tiers and the notice", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      payment_recharge_bonus_tiers: [
-        { min_amount: 500, bonus_percent: 30 },
-        { min_amount: 100, bonus_percent: 20 },
-      ],
-      payment_recharge_bonus_notice: "满 100 送 20%",
-    });
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-
-    // 回填按阈值升序，并渲染区间预览（首段为「不赠送」）
-    let rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    expect(rows).toHaveLength(2);
-    const minValue = (row: (typeof rows)[number]) =>
-      (row.get('[data-testid="recharge-bonus-tier-min-input"]').element as HTMLInputElement).value;
-    expect(minValue(rows[0]!)).toBe("100");
-    expect(minValue(rows[1]!)).toBe("500");
-    expect(wrapper.get('[data-testid="recharge-bonus-tier-preview"]').text()).toContain(
-      "admin.settings.payment.rechargeBonus.previewRangeNone",
-    );
-
-    await wrapper.get('[data-testid="recharge-bonus-tier-add"]').trigger("click");
-    rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    expect(rows).toHaveLength(3);
-    expect(rows[2]!.find('[data-testid="recharge-bonus-tier-incomplete"]').exists()).toBe(true);
-
-    // 与已有档位重复的阈值行内报错，改成新阈值后消失
-    await rows[2]!.get('[data-testid="recharge-bonus-tier-min-input"]').setValue("100");
-    await rows[2]!.get('[data-testid="recharge-bonus-tier-percent-input"]').setValue("25");
-    rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    expect(rows[2]!.find('[data-testid="recharge-bonus-tier-error"]').exists()).toBe(true);
-    await rows[2]!.get('[data-testid="recharge-bonus-tier-min-input"]').setValue("1000");
-    rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    expect(rows[2]!.find('[data-testid="recharge-bonus-tier-error"]').exists()).toBe(false);
-
-    // 切到折扣模式：百分比 ≥ 100 行内报错，改回 < 100 后消失
-    await wrapper.get('[data-testid="recharge-bonus-mode-discount"]').trigger("click");
-    rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    await rows[2]!.get('[data-testid="recharge-bonus-tier-percent-input"]').setValue("100");
-    rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    expect(rows[2]!.get('[data-testid="recharge-bonus-tier-error"]').text()).toContain("invalidDiscountPercent");
-    await rows[2]!.get('[data-testid="recharge-bonus-tier-percent-input"]').setValue("25");
-    rows = wrapper.findAll('[data-testid="recharge-bonus-tier-row"]');
-    expect(rows[2]!.find('[data-testid="recharge-bonus-tier-error"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="recharge-bonus-tier-preview"]').text()).toContain(
-      "admin.settings.payment.rechargeBonus.previewRangeDiscount",
-    );
-
-    const notice = wrapper.get('[data-testid="recharge-bonus-notice-input"]');
-    expect((notice.element as HTMLTextAreaElement).value).toBe("满 100 送 20%");
-    await notice.setValue("**新活动**");
-
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payment_recharge_bonus_tiers: [
-          { min_amount: 100, bonus_percent: 20 },
-          { min_amount: 500, bonus_percent: 30 },
-          { min_amount: 1000, bonus_percent: 25 },
-        ],
-        payment_recharge_bonus_mode: "discount",
-        payment_recharge_bonus_notice: "**新活动**",
-      }),
-    );
-  });
-
-  it("drops incomplete recharge bonus rows and submits an empty list when cleared", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      payment_recharge_bonus_tiers: [{ min_amount: 100, bonus_percent: 20 }],
-    });
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-
-    await wrapper.get('[data-testid="recharge-bonus-tier-remove"]').trigger("click");
-    await wrapper.get('[data-testid="recharge-bonus-tier-add"]').trigger("click");
-    expect(wrapper.findAll('[data-testid="recharge-bonus-tier-row"]')).toHaveLength(1);
-
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ payment_recharge_bonus_tiers: [] }),
-    );
-  });
-
-  it("links payment guidance to README sections instead of removed payment docs", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-
-    const paymentLinks = wrapper
-      .findAll("a")
-      .filter((node) =>
-        ["查看支付配置说明", "查看支持的支付方式"].includes(node.text()),
-      );
-
-    expect(paymentLinks).toHaveLength(2);
-    expect(paymentLinks[0]?.attributes("href")).toBe(
-      "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT_CN.md",
-    );
-    expect(paymentLinks[1]?.attributes("href")).toBe(
-      "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT_CN.md#支持的支付方式",
-    );
-    for (const link of paymentLinks) {
-      expect(link.attributes("href")).toContain("docs/PAYMENT");
-    }
-  });
-
-  it("does not submit legacy visible payment method settings", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledTimes(1);
-    const payload = updateSettings.mock.calls[0]?.[0];
-    expect(payload).not.toHaveProperty("payment_visible_method_alipay_source");
-    expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
-    expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
-    expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
-  });
-
-  it("submits the admin recharge affiliate rebate setting", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      affiliate_enabled: true,
-      affiliate_admin_recharge_enabled: true,
-    });
-
-    const wrapper = mountView();
-
-    await flushPromises();
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        affiliate_admin_recharge_enabled: true,
-      }),
-    );
-  });
-
   it("submits Anthropic cache TTL injection gateway setting", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
@@ -1314,69 +1139,6 @@ describe("admin SettingsView payment visible method controls", () => {
         antigravity_user_agent_version: "1.23.2",
       }),
     );
-  });
-
-  it("updates provider enablement immediately and reloads providers", async () => {
-    const provider = {
-      id: 7,
-      provider_key: "alipay",
-      name: "Official Alipay",
-      config: {},
-      supported_types: ["alipay"],
-      enabled: false,
-      payment_mode: "",
-      refund_enabled: false,
-      allow_user_refund: false,
-      limits: "",
-      sort_order: 0,
-    };
-    getProviders.mockReset();
-    getProviders
-      .mockResolvedValueOnce({ data: [provider] })
-      .mockResolvedValueOnce({ data: [{ ...provider, enabled: true }] });
-    updateProvider.mockResolvedValue({ data: { ...provider, enabled: true } });
-
-    const PaymentProviderListStub = defineComponent({
-      emits: ["toggleField"],
-      setup(_, { emit }) {
-        return () =>
-          h(
-            "button",
-            {
-              class: "provider-toggle-stub",
-              onClick: () => emit("toggleField", provider, "enabled"),
-            },
-            "toggle provider",
-          );
-      },
-    });
-
-    const wrapper = mount(SettingsView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          Select: SelectStub,
-          Toggle: ToggleStub,
-          Icon: true,
-          ConfirmDialog: true,
-          PaymentProviderList: PaymentProviderListStub,
-          PaymentProviderDialog: true,
-          GroupBadge: true,
-          GroupOptionItem: true,
-          ProxySelector: true,
-          ImageUpload: ImageUploadStub,
-          BackupSettings: true,
-        },
-      },
-    });
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-    await wrapper.get(".provider-toggle-stub").trigger("click");
-    await flushPromises();
-
-    expect(updateProvider).toHaveBeenCalledWith(7, { enabled: true });
-    expect(getProviders).toHaveBeenCalledTimes(2);
   });
 
   it("renders advanced scheduler copy as local experimental gateway policy", async () => {
@@ -1643,88 +1405,6 @@ describe("admin SettingsView payment visible method controls", () => {
     );
     expect(weightedModeText).toContain("计费倍率");
   });
-
-  it("passes translated upload and remove labels to the payment help image uploader", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-
-    const imageUploads = wrapper.findAll(".image-upload-stub");
-    expect(imageUploads.length).toBeGreaterThan(0);
-
-    const paymentHelpImageUpload = imageUploads.find(
-      (node) => node.attributes("data-placeholder") === "admin.settings.payment.helpImagePlaceholder",
-    );
-
-    expect(paymentHelpImageUpload).toBeDefined();
-    expect(paymentHelpImageUpload?.attributes("data-upload-label")).toBe("上传图片");
-    expect(paymentHelpImageUpload?.attributes("data-remove-label")).toBe("移除");
-  });
-
-  it("normalizes null supported_types from API so provider card stays visible", async () => {
-    // Backend returns null for supported_types when the list is empty
-    // (Go nil slice → JSON null). Without normalization, ProviderCard's
-    // isSelected() throws TypeError on null.includes(), causing the card
-    // to vanish from the list.
-    const providerWithNullTypes = {
-      id: 42,
-      provider_key: "easypay",
-      name: "EasyPay",
-      config: {},
-      supported_types: null as unknown as string[],
-      enabled: true,
-      payment_mode: "",
-      refund_enabled: false,
-      allow_user_refund: false,
-      limits: "",
-      sort_order: 0,
-    };
-    getProviders.mockReset();
-    getProviders.mockResolvedValue({ data: [providerWithNullTypes] });
-
-    let receivedProviders: Array<Record<string, unknown>> = [];
-    const PaymentProviderListCapture = defineComponent({
-      props: {
-        providers: {
-          type: Array,
-          default: () => [],
-        },
-      },
-      setup(props) {
-        receivedProviders = props.providers as Array<Record<string, unknown>>;
-        return () => h("div", { class: "provider-list-capture" });
-      },
-    });
-
-    const wrapper = mount(SettingsView, {
-      global: {
-        stubs: {
-          AppLayout: AppLayoutStub,
-          Select: SelectStub,
-          Toggle: ToggleStub,
-          Icon: true,
-          ConfirmDialog: true,
-          PaymentProviderList: PaymentProviderListCapture,
-          PaymentProviderDialog: true,
-          GroupBadge: true,
-          GroupOptionItem: true,
-          ProxySelector: true,
-          ImageUpload: ImageUploadStub,
-          BackupSettings: true,
-        },
-      },
-    });
-
-    await flushPromises();
-    await openPaymentTab(wrapper);
-
-    // The provider should still be in the list
-    expect(receivedProviders.length).toBe(1);
-    // supported_types should be normalized to an empty array, not null
-    expect(Array.isArray(receivedProviders[0].supported_types)).toBe(true);
-    expect(receivedProviders[0].supported_types).toEqual([]);
-  });
 });
 
 describe("admin SettingsView wechat connect controls", () => {
@@ -1809,46 +1489,6 @@ describe("admin SettingsView wechat connect controls", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
-  it("loads and echoes WeChat Connect fields from the backend payload", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openSecurityTab(wrapper);
-
-    expect(
-      (
-        wrapper.get('[data-testid="wechat-connect-mp-app-id"]')
-          .element as HTMLInputElement
-      ).value,
-    ).toBe("wx-app-id-123");
-    expect(
-      (
-        wrapper.get('[data-testid="wechat-connect-open-enabled"]')
-          .element as HTMLInputElement
-      ).checked,
-    ).toBe(false);
-    expect(
-      (
-        wrapper.get('[data-testid="wechat-connect-mp-enabled"]')
-          .element as HTMLInputElement
-      ).checked,
-    ).toBe(true);
-    expect(wrapper.find('[data-testid="wechat-connect-scopes"]').exists()).toBe(
-      false,
-    );
-    expect(
-      wrapper
-        .get('[data-testid="wechat-connect-mp-app-secret"]')
-        .attributes("placeholder"),
-    ).toContain("密钥已配置");
-    expect(
-      (
-        wrapper.get('[data-testid="wechat-connect-frontend-redirect-url"]')
-          .element as HTMLInputElement
-      ).value,
-    ).toBe("/auth/wechat/callback");
-  });
-
   it("links GitHub OAuth Apps guide to GitHub developer settings", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
@@ -1865,60 +1505,6 @@ describe("admin SettingsView wechat connect controls", () => {
     expect(link.attributes("href")).toBe("https://github.com/settings/developers");
     expect(link.attributes("target")).toBe("_blank");
     expect(link.attributes("rel")).toContain("noopener");
-  });
-
-  it("saves WeChat Connect fields using the backend contract and clears the secret after save", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openSecurityTab(wrapper);
-
-    await wrapper
-      .get('[data-testid="wechat-connect-mp-app-id"]')
-      .setValue("wx-app-id-updated");
-    await wrapper
-      .get('[data-testid="wechat-connect-mp-app-secret"]')
-      .setValue("new-secret");
-    await wrapper
-      .get('[data-testid="wechat-connect-open-enabled"]')
-      .setValue(true);
-    await wrapper
-      .get('[data-testid="wechat-connect-mp-enabled"]')
-      .setValue(true);
-    await wrapper
-      .get('[data-testid="wechat-connect-redirect-url"]')
-      .setValue("https://admin.example.com/api/v1/auth/oauth/wechat/callback");
-    await wrapper
-      .get('[data-testid="wechat-connect-frontend-redirect-url"]')
-      .setValue("/auth/wechat/callback");
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledTimes(1);
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({
-        wechat_connect_enabled: true,
-        wechat_connect_app_id: "wx-app-id-updated",
-        wechat_connect_open_enabled: true,
-        wechat_connect_mp_enabled: true,
-        wechat_connect_mp_app_id: "wx-app-id-updated",
-        wechat_connect_mp_app_secret: "new-secret",
-        wechat_connect_redirect_url:
-          "https://admin.example.com/api/v1/auth/oauth/wechat/callback",
-        wechat_connect_frontend_redirect_url: "/auth/wechat/callback",
-      }),
-    );
-    expect(
-      (
-        wrapper.get('[data-testid="wechat-connect-mp-app-secret"]')
-          .element as HTMLInputElement
-      ).value,
-    ).toBe("");
-    expect(
-      wrapper
-        .get('[data-testid="wechat-connect-mp-app-secret"]')
-        .attributes("placeholder"),
-    ).toContain("密钥已配置");
   });
 
   it("collapses auth source defaults until the source is enabled", async () => {

@@ -11315,6 +11315,8 @@ type BatchImageJobMutation struct {
 	adduser_id          *int64
 	api_key_id          *int64
 	addapi_key_id       *int64
+	subscription_id     *int64
+	addsubscription_id  *int64
 	account_id          *int64
 	addaccount_id       *int64
 	provider            *string
@@ -11626,6 +11628,76 @@ func (m *BatchImageJobMutation) ResetAPIKeyID() {
 	m.api_key_id = nil
 	m.addapi_key_id = nil
 	delete(m.clearedFields, batchimagejob.FieldAPIKeyID)
+}
+
+// SetSubscriptionID sets the "subscription_id" field.
+func (m *BatchImageJobMutation) SetSubscriptionID(i int64) {
+	m.subscription_id = &i
+	m.addsubscription_id = nil
+}
+
+// SubscriptionID returns the value of the "subscription_id" field in the mutation.
+func (m *BatchImageJobMutation) SubscriptionID() (r int64, exists bool) {
+	v := m.subscription_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionID returns the old "subscription_id" field's value of the BatchImageJob entity.
+// If the BatchImageJob object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BatchImageJobMutation) OldSubscriptionID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionID: %w", err)
+	}
+	return oldValue.SubscriptionID, nil
+}
+
+// AddSubscriptionID adds i to the "subscription_id" field.
+func (m *BatchImageJobMutation) AddSubscriptionID(i int64) {
+	if m.addsubscription_id != nil {
+		*m.addsubscription_id += i
+	} else {
+		m.addsubscription_id = &i
+	}
+}
+
+// AddedSubscriptionID returns the value that was added to the "subscription_id" field in this mutation.
+func (m *BatchImageJobMutation) AddedSubscriptionID() (r int64, exists bool) {
+	v := m.addsubscription_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSubscriptionID clears the value of the "subscription_id" field.
+func (m *BatchImageJobMutation) ClearSubscriptionID() {
+	m.subscription_id = nil
+	m.addsubscription_id = nil
+	m.clearedFields[batchimagejob.FieldSubscriptionID] = struct{}{}
+}
+
+// SubscriptionIDCleared returns if the "subscription_id" field was cleared in this mutation.
+func (m *BatchImageJobMutation) SubscriptionIDCleared() bool {
+	_, ok := m.clearedFields[batchimagejob.FieldSubscriptionID]
+	return ok
+}
+
+// ResetSubscriptionID resets all changes to the "subscription_id" field.
+func (m *BatchImageJobMutation) ResetSubscriptionID() {
+	m.subscription_id = nil
+	m.addsubscription_id = nil
+	delete(m.clearedFields, batchimagejob.FieldSubscriptionID)
 }
 
 // SetAccountID sets the "account_id" field.
@@ -13496,7 +13568,7 @@ func (m *BatchImageJobMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *BatchImageJobMutation) Fields() []string {
-	fields := make([]string, 0, 40)
+	fields := make([]string, 0, 41)
 	if m.batch_id != nil {
 		fields = append(fields, batchimagejob.FieldBatchID)
 	}
@@ -13505,6 +13577,9 @@ func (m *BatchImageJobMutation) Fields() []string {
 	}
 	if m.api_key_id != nil {
 		fields = append(fields, batchimagejob.FieldAPIKeyID)
+	}
+	if m.subscription_id != nil {
+		fields = append(fields, batchimagejob.FieldSubscriptionID)
 	}
 	if m.account_id != nil {
 		fields = append(fields, batchimagejob.FieldAccountID)
@@ -13631,6 +13706,8 @@ func (m *BatchImageJobMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case batchimagejob.FieldAPIKeyID:
 		return m.APIKeyID()
+	case batchimagejob.FieldSubscriptionID:
+		return m.SubscriptionID()
 	case batchimagejob.FieldAccountID:
 		return m.AccountID()
 	case batchimagejob.FieldProvider:
@@ -13720,6 +13797,8 @@ func (m *BatchImageJobMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldUserID(ctx)
 	case batchimagejob.FieldAPIKeyID:
 		return m.OldAPIKeyID(ctx)
+	case batchimagejob.FieldSubscriptionID:
+		return m.OldSubscriptionID(ctx)
 	case batchimagejob.FieldAccountID:
 		return m.OldAccountID(ctx)
 	case batchimagejob.FieldProvider:
@@ -13823,6 +13902,13 @@ func (m *BatchImageJobMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAPIKeyID(v)
+		return nil
+	case batchimagejob.FieldSubscriptionID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionID(v)
 		return nil
 	case batchimagejob.FieldAccountID:
 		v, ok := value.(int64)
@@ -14097,6 +14183,9 @@ func (m *BatchImageJobMutation) AddedFields() []string {
 	if m.addapi_key_id != nil {
 		fields = append(fields, batchimagejob.FieldAPIKeyID)
 	}
+	if m.addsubscription_id != nil {
+		fields = append(fields, batchimagejob.FieldSubscriptionID)
+	}
 	if m.addaccount_id != nil {
 		fields = append(fields, batchimagejob.FieldAccountID)
 	}
@@ -14139,6 +14228,8 @@ func (m *BatchImageJobMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedUserID()
 	case batchimagejob.FieldAPIKeyID:
 		return m.AddedAPIKeyID()
+	case batchimagejob.FieldSubscriptionID:
+		return m.AddedSubscriptionID()
 	case batchimagejob.FieldAccountID:
 		return m.AddedAccountID()
 	case batchimagejob.FieldItemCount:
@@ -14181,6 +14272,13 @@ func (m *BatchImageJobMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddAPIKeyID(v)
+		return nil
+	case batchimagejob.FieldSubscriptionID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSubscriptionID(v)
 		return nil
 	case batchimagejob.FieldAccountID:
 		v, ok := value.(int64)
@@ -14262,6 +14360,9 @@ func (m *BatchImageJobMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(batchimagejob.FieldAPIKeyID) {
 		fields = append(fields, batchimagejob.FieldAPIKeyID)
+	}
+	if m.FieldCleared(batchimagejob.FieldSubscriptionID) {
+		fields = append(fields, batchimagejob.FieldSubscriptionID)
 	}
 	if m.FieldCleared(batchimagejob.FieldAccountID) {
 		fields = append(fields, batchimagejob.FieldAccountID)
@@ -14349,6 +14450,9 @@ func (m *BatchImageJobMutation) ClearField(name string) error {
 	case batchimagejob.FieldAPIKeyID:
 		m.ClearAPIKeyID()
 		return nil
+	case batchimagejob.FieldSubscriptionID:
+		m.ClearSubscriptionID()
+		return nil
 	case batchimagejob.FieldAccountID:
 		m.ClearAccountID()
 		return nil
@@ -14434,6 +14538,9 @@ func (m *BatchImageJobMutation) ResetField(name string) error {
 		return nil
 	case batchimagejob.FieldAPIKeyID:
 		m.ResetAPIKeyID()
+		return nil
+	case batchimagejob.FieldSubscriptionID:
+		m.ResetSubscriptionID()
 		return nil
 	case batchimagejob.FieldAccountID:
 		m.ResetAccountID()

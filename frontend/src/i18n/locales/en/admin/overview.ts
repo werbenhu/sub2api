@@ -1052,7 +1052,7 @@ export default {
         minimax: 'MiniMax',
         opencode_go: 'OpenCode',
         typesafe: 'TypeSafe / Jev',
-        composite: 'Composite',
+        composite: 'Multi-platform',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",

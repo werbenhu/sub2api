@@ -100,17 +100,16 @@ describe('ProfileInfoCard', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('User')
     expect(wrapper.get('[data-testid="profile-basics-panel"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
   })
 
   it('renders third-party source hints from profile sources', () => {
     const wrapper = mount(ProfileInfoCard, {
       props: {
         user: createUser({
-          avatar_url: 'https://cdn.example.com/linuxdo.png',
+          avatar_url: 'https://cdn.example.com/dingtalk.png',
           profile_sources: {
-            avatar: { provider: 'linuxdo', source: 'linuxdo' },
-            username: { provider: 'linuxdo', source: 'linuxdo' }
+            avatar: { provider: 'dingtalk', source: 'dingtalk' },
+            username: { provider: 'dingtalk', source: 'dingtalk' }
           }
         })
       },
@@ -121,8 +120,8 @@ describe('ProfileInfoCard', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('Avatar synced from LinuxDo')
-    expect(wrapper.text()).toContain('Username synced from LinuxDo')
+    expect(wrapper.text()).toContain('Avatar synced from DingTalk')
+    expect(wrapper.text()).toContain('Username synced from DingTalk')
   })
 
   it('uses the configured OIDC provider name in source hints', () => {
@@ -199,13 +198,11 @@ describe('ProfileInfoCard', () => {
     })
 
     expect(wrapper.get('[data-testid="profile-overview-hero"]').text()).toContain('alice@example.com')
-    expect(wrapper.get('[data-testid="profile-overview-metric-balance"]').text()).toContain('Account Balance')
     expect(wrapper.get('[data-testid="profile-overview-metric-concurrency"]').text()).toContain('Concurrency Limit')
     expect(wrapper.get('[data-testid="profile-overview-metric-member-since"]').text()).toContain('Member Since')
     expect(wrapper.find('[data-testid="profile-info-summary-grid"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="profile-main-column"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-side-column"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-basics-panel"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
   })
 })

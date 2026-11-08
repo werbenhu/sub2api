@@ -69,6 +69,11 @@ func APIKeyID(v int64) predicate.BatchImageJob {
 	return predicate.BatchImageJob(sql.FieldEQ(FieldAPIKeyID, v))
 }
 
+// SubscriptionID applies equality check predicate on the "subscription_id" field. It's identical to SubscriptionIDEQ.
+func SubscriptionID(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldEQ(FieldSubscriptionID, v))
+}
+
 // AccountID applies equality check predicate on the "account_id" field. It's identical to AccountIDEQ.
 func AccountID(v int64) predicate.BatchImageJob {
 	return predicate.BatchImageJob(sql.FieldEQ(FieldAccountID, v))
@@ -407,6 +412,56 @@ func APIKeyIDIsNil() predicate.BatchImageJob {
 // APIKeyIDNotNil applies the NotNil predicate on the "api_key_id" field.
 func APIKeyIDNotNil() predicate.BatchImageJob {
 	return predicate.BatchImageJob(sql.FieldNotNull(FieldAPIKeyID))
+}
+
+// SubscriptionIDEQ applies the EQ predicate on the "subscription_id" field.
+func SubscriptionIDEQ(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldEQ(FieldSubscriptionID, v))
+}
+
+// SubscriptionIDNEQ applies the NEQ predicate on the "subscription_id" field.
+func SubscriptionIDNEQ(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldNEQ(FieldSubscriptionID, v))
+}
+
+// SubscriptionIDIn applies the In predicate on the "subscription_id" field.
+func SubscriptionIDIn(vs ...int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldIn(FieldSubscriptionID, vs...))
+}
+
+// SubscriptionIDNotIn applies the NotIn predicate on the "subscription_id" field.
+func SubscriptionIDNotIn(vs ...int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldNotIn(FieldSubscriptionID, vs...))
+}
+
+// SubscriptionIDGT applies the GT predicate on the "subscription_id" field.
+func SubscriptionIDGT(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldGT(FieldSubscriptionID, v))
+}
+
+// SubscriptionIDGTE applies the GTE predicate on the "subscription_id" field.
+func SubscriptionIDGTE(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldGTE(FieldSubscriptionID, v))
+}
+
+// SubscriptionIDLT applies the LT predicate on the "subscription_id" field.
+func SubscriptionIDLT(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldLT(FieldSubscriptionID, v))
+}
+
+// SubscriptionIDLTE applies the LTE predicate on the "subscription_id" field.
+func SubscriptionIDLTE(v int64) predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldLTE(FieldSubscriptionID, v))
+}
+
+// SubscriptionIDIsNil applies the IsNil predicate on the "subscription_id" field.
+func SubscriptionIDIsNil() predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldIsNull(FieldSubscriptionID))
+}
+
+// SubscriptionIDNotNil applies the NotNil predicate on the "subscription_id" field.
+func SubscriptionIDNotNil() predicate.BatchImageJob {
+	return predicate.BatchImageJob(sql.FieldNotNull(FieldSubscriptionID))
 }
 
 // AccountIDEQ applies the EQ predicate on the "account_id" field.

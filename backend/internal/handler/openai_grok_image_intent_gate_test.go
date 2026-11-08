@@ -96,10 +96,11 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 		User: &service.User{ID: userID, Status: service.StatusActive},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: userID, Concurrency: 1})
+	c.Set(string(middleware2.ContextKeySubscription), activeTestSubscription(userID, groupID))
 
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},
-		billingCacheService: service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil),
+		billingCacheService: service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil),
 		apiKeyService:       &service.APIKeyService{},
 		concurrencyHelper: &ConcurrencyHelper{concurrencyService: service.NewConcurrencyService(
 			&helperConcurrencyCacheStub{userSeq: []bool{true}},
