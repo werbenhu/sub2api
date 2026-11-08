@@ -491,6 +491,22 @@ func settingsAuditRequest(req UpdateSettingsRequest) UpdateSettingsRequest {
 	return req
 }
 
+func disableRemovedAuthenticationSettings(req *UpdateSettingsRequest) {
+	disabled := false
+	req.TotpEnabled = false
+	req.PasskeyEnabled = &disabled
+	req.StepUpEnabled = &disabled
+	req.TurnstileEnabled = false
+	req.TencentCaptchaEnabled = false
+	req.AliyunCaptchaEnabled = false
+	req.LinuxDoConnectEnabled = false
+	req.DingTalkConnectEnabled = false
+	req.WeChatConnectEnabled = false
+	req.OIDCConnectEnabled = false
+	req.GitHubOAuthEnabled = false
+	req.GoogleOAuthEnabled = false
+}
+
 func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	var sentFields map[string]json.RawMessage
 	if err := c.ShouldBindBodyWith(&sentFields, binding.JSON); err != nil {
@@ -502,6 +518,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	disableRemovedAuthenticationSettings(&req)
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
 

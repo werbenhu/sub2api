@@ -166,6 +166,57 @@ func TestGatewayCompositeRouteModelsAppearInBothCatalogs(t *testing.T) {
 	}
 }
 
+type gatewayModelsGroupRepoStub struct {
+	service.GroupRepository
+	groups map[int64]*service.Group
+}
+
+func (s gatewayModelsGroupRepoStub) GetByID(_ context.Context, id int64) (*service.Group, error) {
+	return s.groups[id], nil
+}
+func (s gatewayModelsGroupRepoStub) GetByIDLite(_ context.Context, id int64) (*service.Group, error) {
+	return s.groups[id], nil
+}
+
+func TestGatewayModelsMergesAllAPIKeyGroups(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	accounts := &gatewayModelsAccountRepoStub{byGroup: map[int64][]service.Account{
+		1: {{ID: 1, Platform: service.PlatformAnthropic, Credentials: map[string]any{
+			"model_mapping": map[string]any{"claude-custom": "claude-upstream"},
+		}}},
+	}}
+	routes := &gatewayModelsRouteRepoStub{routes: []service.CompositeModelRoute{
+		{PublicModel: "route-only", MatchType: service.CompositeRouteMatchExact, Enabled: true},
+		{PublicModel: "route-only", MatchType: service.CompositeRouteMatchExact, Enabled: true},
+	}}
+	groupRepo := gatewayModelsGroupRepoStub{groups: map[int64]*service.Group{
+		1: {ID: 1, Platform: service.PlatformAnthropic, Status: service.StatusActive},
+		2: {ID: 2, Platform: service.PlatformComposite, Status: service.StatusActive},
+	}}
+	h := &GatewayHandler{gatewayService: service.NewGatewayService(
+		accounts, groupRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewCompositeRouteResolver(routes), nil, nil,
+	)}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{Group: groupRepo.groups[1], GroupIDs: []int64{1, 2}})
+
+	h.Models(c)
+
+	var got gatewayModelsResponseForTest
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &got))
+	ids := modelIDsForTest(got.Data)
+	require.Contains(t, ids, "claude-custom")
+	require.Contains(t, ids, "route-only")
+	counts := make(map[string]int, len(ids))
+	for _, id := range ids {
+		counts[id]++
+	}
+	require.Equal(t, 1, counts["claude-custom"])
+	require.Equal(t, 1, counts["route-only"])
+}
+
 func TestDefaultModelIDsForCompositeIncludesAntigravityDefaults(t *testing.T) {
 	antigravityIDs := defaultModelIDsForPlatform(service.PlatformAntigravity)
 	require.NotEmpty(t, antigravityIDs)

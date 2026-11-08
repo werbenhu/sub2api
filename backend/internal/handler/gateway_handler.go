@@ -1160,8 +1160,14 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		groupID = &apiKey.Group.ID
 		platform = apiKey.Group.Platform
 	}
-	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
+	forcedPlatform, hasForcedPlatform := middleware2.GetForcePlatformFromContext(c)
+	if hasForcedPlatform && strings.TrimSpace(forcedPlatform) != "" {
 		platform = forcedPlatform
+	}
+
+	if apiKey != nil && apiKey.HasMultipleGroups() && forcedPlatform == "" {
+		writeModelsList(c, service.PlatformComposite, h.multiGroupModelIDs(c.Request.Context(), apiKey))
+		return
 	}
 
 	if platform == service.PlatformOpenAI && apiKey != nil && apiKey.Group != nil &&
@@ -1221,6 +1227,43 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 
 	writeModelsListResponse(c, claude.DefaultModels)
+}
+
+func (h *GatewayHandler) multiGroupModelIDs(ctx context.Context, apiKey *service.APIKey) []string {
+	if apiKey == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	models := make([]string, 0)
+	for _, groupID := range apiKey.ConfiguredGroupIDs() {
+		group, err := h.gatewayService.ResolveGroupByID(ctx, groupID)
+		if err != nil || group == nil || group.Status != service.StatusActive {
+			continue
+		}
+		groupID := group.ID
+		var available []string
+		if group.Platform == service.PlatformComposite {
+			available = h.compositeAvailableModels(ctx, &groupID, "", true)
+		} else {
+			available = h.gatewayService.GetAvailableModels(ctx, &groupID, group.Platform)
+		}
+		available = modelListingSource(group.Platform, available, defaultModelIDsForPlatform(group.Platform))
+		if group.ModelAllowlistEnabled() {
+			available = group.ModelAllowlist.FilterForListing(available)
+		}
+		for _, model := range available {
+			model = strings.TrimSpace(model)
+			if model == "" {
+				continue
+			}
+			if _, exists := seen[model]; exists {
+				continue
+			}
+			seen[model] = struct{}{}
+			models = append(models, model)
+		}
+	}
+	return models
 }
 
 // CodexModels returns the effective group model list using the manifest shape
