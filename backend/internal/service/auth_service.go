@@ -85,6 +85,7 @@ type AuthService struct {
 	promoService          *PromoService
 	affiliateService      *AffiliateService
 	defaultSubAssigner    DefaultSubscriptionAssigner
+	defaultAPIKeyCreator  *APIKeyService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	mcpGrantRevoker       MCPGrantRevoker
 }
@@ -271,6 +272,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	}
 	s.postAuthUserBootstrap(ctx, user, "email", true)
 	s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
+	s.createDefaultAPIKeyForUser(ctx, user.ID, len(grantPlan.Subscriptions) > 0)
 	// snapshot user × platform quota（fail-open）
 	_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
 	if s.affiliateService != nil {
@@ -903,6 +905,15 @@ func (s *AuthService) assignSubscriptions(ctx context.Context, userID int64, ite
 		}); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to assign default subscription: user_id=%d group_id=%d err=%v", userID, item.GroupID, err)
 		}
+	}
+}
+
+func (s *AuthService) createDefaultAPIKeyForUser(ctx context.Context, userID int64, hasDefaultSubscription bool) {
+	if s == nil || s.defaultAPIKeyCreator == nil || userID <= 0 || !hasDefaultSubscription {
+		return
+	}
+	if _, err := s.defaultAPIKeyCreator.Create(ctx, userID, CreateAPIKeyRequest{Name: "内部模型 Key"}); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to create default API key: user_id=%d err=%v", userID, err)
 	}
 }
 

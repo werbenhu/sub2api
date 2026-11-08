@@ -54,27 +54,6 @@ func RegisterUserRoutes(
 				notifyEmail.DELETE("", h.User.RemoveNotifyEmail)
 			}
 
-			// TOTP 双因素认证
-			totp := user.Group("/totp")
-			{
-				totp.GET("/status", h.Totp.GetStatus)
-				totp.GET("/verification-method", h.Totp.GetVerificationMethod)
-				totp.POST("/send-code", h.Totp.SendVerifyCode)
-				totp.POST("/setup", h.Totp.InitiateSetup)
-				totp.POST("/enable", h.Totp.Enable)
-				totp.POST("/disable", h.Totp.Disable)
-				// 敏感操作二次验证：授予当前会话一段时间的 step-up 权限
-				totp.POST("/step-up", h.Totp.StepUp)
-			}
-
-			passkeys := user.Group("/passkeys")
-			{
-				passkeys.GET("", h.Passkey.List)
-				passkeys.POST("/register/begin", h.Passkey.BeginRegistration)
-				passkeys.POST("/register/finish", h.Passkey.FinishRegistration)
-				passkeys.PATCH("/:id", h.Passkey.Rename)
-				passkeys.DELETE("/:id", h.Passkey.Delete)
-			}
 		}
 
 		// API Key管理

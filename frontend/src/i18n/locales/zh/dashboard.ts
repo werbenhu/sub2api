@@ -145,6 +145,8 @@ export default {
     failedToDelete: '删除 API 密钥失败',
     failedToUpdateStatus: '更新 API 密钥状态失败',
     clickToChangeGroup: '点击更换分组',
+    multiGroupHint: '可勾选多个分组；请求会按模型选择对应分组、路由和订阅',
+    groupCount: '{count} 个分组',
     groupChangedSuccess: '分组更换成功',
     failedToChangeGroup: '更换分组失败',
     groupRequired: '请选择分组',

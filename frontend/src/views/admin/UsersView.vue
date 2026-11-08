@@ -264,7 +264,7 @@
             </button>
 
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
-            <button @click="showCreateModal = true" class="btn btn-primary flex-1 md:flex-initial">
+            <button @click="openCreateUser" class="btn btn-primary flex-1 md:flex-initial">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.users.createUser') }}
             </button>
@@ -629,7 +629,7 @@
               :title="t('admin.users.noUsersYet')"
               :description="t('admin.users.createFirstUser')"
               :action-text="t('admin.users.createUser')"
-              @action="showCreateModal = true"
+              @action="openCreateUser"
             />
           </template>
         </DataTable>
@@ -714,7 +714,7 @@
       @confirm="confirmBulkDelete"
       @cancel="bulkDeleteIds = []"
     />
-    <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
+    <UserCreateModal :show="showCreateModal" :groups="allGroups" @close="showCreateModal = false" @success="loadUsers" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
     <BulkEditUserModal
       :show="showBulkEditModal"
@@ -1012,6 +1012,11 @@ const loadAllGroups = async () => {
   } catch (e) {
     console.error('Failed to load groups:', e)
   }
+}
+
+const openCreateUser = async () => {
+  await loadAllGroups()
+  showCreateModal.value = true
 }
 
 // Groups for the API Key group filter — includes disabled groups so admins can

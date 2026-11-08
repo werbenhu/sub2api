@@ -1,8 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import LoginView from '../LoginView.vue'
-import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
-import OAuthCallbackView from '../OAuthCallbackView.vue'
 
 const { route, login, push, replace, exchangeCompletion } = vi.hoisted(() => ({
   route: { path: '/login', query: {} as Record<string, unknown> },
@@ -69,28 +67,4 @@ describe('MCP authorization through existing sign-in flows', () => {
     expect(push).toHaveBeenCalledWith(authorizationPath)
   })
 
-  it.each([
-    ['github', EmailOAuthButtons, { githubEnabled: true }],
-    ['google', EmailOAuthButtons, { googleEnabled: true }],
-  ] as const)('preserves the entire return path when starting %s sign-in', async (provider, component, props) => {
-    const wrapper = mount(component, { props, global: { stubs: { Icon: true } } })
-    mounted.push(wrapper)
-    await wrapper.get('button').trigger('click')
-    const event = wrapper.emitted('start')?.[0]?.[0] as { provider: string; params: Record<string, string> }
-    expect(event.provider).toBe(provider)
-    expect(event.params.redirect).toBe(authorizationPath)
-    const { buildOAuthLoginStartURL } = await import('@/api/auth')
-    const start = new URL(buildOAuthLoginStartURL(event), 'https://platform.example.com')
-    expect(start.searchParams.get('redirect')).toBe(authorizationPath)
-  })
-
-  it('returns from successful social sign-in to the intact OAuth consent request', async () => {
-    route.path = '/auth/oauth/callback'
-    route.query = {}
-    exchangeCompletion.mockResolvedValue({ access_token: 'test-session', redirect: authorizationPath })
-    const wrapper = mount(OAuthCallbackView)
-    mounted.push(wrapper)
-    await flushPromises()
-    expect(replace).toHaveBeenCalledWith(authorizationPath)
-  })
 })

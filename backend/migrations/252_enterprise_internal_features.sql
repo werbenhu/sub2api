@@ -13,5 +13,13 @@ WHERE key IN (
     'channel_monitor_enabled',
     'channel_monitor_user_visible',
     'available_channels_enabled',
-    'payment_enabled'
+    'payment_enabled',
+    'totp_enabled',
+    'passkey_enabled',
+    'step_up_enabled',
+    'github_oauth_enabled',
+    'google_oauth_enabled'
 );
+
+UPDATE users
+SET totp_enabled = FALSE;

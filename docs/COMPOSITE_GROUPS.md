@@ -9,6 +9,12 @@ All groups use subscription quota. Administrators assign or renew subscriptions
 directly. Wallet deduction, online payment, redemption codes, and referral
 billing are not part of this workflow.
 
+An API key can store an ordered `group_ids` list in addition to the legacy
+`group_id`. New default keys collect every active subscription group. Each
+request resolves its model to one actual group, then uses that group's routes,
+pricing, limits and subscription. The legacy field remains as the compatibility
+default; old keys require no migration of their stored data.
+
 ## Supported Providers
 
 A multi-platform group can contain accounts from:

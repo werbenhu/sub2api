@@ -135,23 +135,6 @@ describe('LoginForm 核心逻辑', () => {
     expect(mockLogin).not.toHaveBeenCalled()
   })
 
-  it('需要 2FA 时不跳转', async () => {
-    mockLogin.mockResolvedValue({
-      requires_2fa: true,
-      temp_token: 'temp-123',
-    })
-
-    const wrapper = mount(LoginFormTestComponent)
-
-    await wrapper.find('#email').setValue('test@example.com')
-    await wrapper.find('#password').setValue('password123')
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    expect(mockPush).not.toHaveBeenCalled()
-    expect(wrapper.find('.error').text()).toBe('需要 2FA 验证')
-  })
-
   it('提交过程中按钮被禁用', async () => {
     let resolveLogin: (v: any) => void
     mockLogin.mockImplementation(

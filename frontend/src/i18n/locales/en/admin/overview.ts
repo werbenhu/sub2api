@@ -669,7 +669,7 @@ export default {
       deleteConfirm: "Are you sure you want to delete '{email}'? This action cannot be undone.",
       setAllowedGroups: 'Set Allowed Groups',
       allowedGroupsHint:
-        'Select which standard groups this user can use. Subscription groups are managed separately.',
+        'Creates matching subscriptions, exclusive access and a default key covering these groups',
       noStandardGroups: 'No standard groups available',
       allowAllGroups: 'Allow All Groups',
       allowAllGroupsHint: 'User can use any non-exclusive group',

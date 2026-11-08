@@ -794,53 +794,6 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(showSuccess).toHaveBeenCalled();
   });
 
-  it("shows valid passkey RP configuration and persists the sign-in toggle", async () => {
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openSecurityTab(wrapper);
-
-    const settings = wrapper.get('[data-testid="passkey-settings"]');
-    const toggle = settings.get('[data-testid="passkey-toggle"]');
-    expect(toggle.attributes("disabled")).toBeUndefined();
-    expect(settings.text()).toContain("sub3.nebula-spaces.com");
-    expect(settings.text()).toContain("https://sub3.nebula-spaces.com");
-    expect(settings.text()).not.toContain("webauthn.enabled");
-
-    await toggle.setValue(false);
-    await wrapper.find("form").trigger("submit.prevent");
-    await flushPromises();
-
-    expect(updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ passkey_enabled: false }),
-    );
-  });
-
-  it("disables passkey sign-in when the RP configuration is unavailable", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      passkey_enabled: false,
-      passkey_configured: false,
-      passkey_rp_id: "",
-      passkey_rp_origins: [],
-    });
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openSecurityTab(wrapper);
-
-    const settings = wrapper.get('[data-testid="passkey-settings"]');
-    expect(settings.get('[data-testid="passkey-toggle"]').attributes("disabled")).toBeDefined();
-    const status = settings.get('[data-testid="passkey-config-status"]');
-    expect(status.text()).toContain(
-      "admin.settings.security.passkeyNotConfigured",
-    );
-    expect(status.text()).toContain("webauthn.enabled");
-    expect(status.text()).toContain("webauthn.rp_id");
-    expect(status.text()).toContain("webauthn.rp_origins");
-    expect(status.text()).toContain("然后重启服务");
-  });
-
   it("loads, edits, validates, and saves forwarded client-IP headers", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
@@ -1341,24 +1294,6 @@ describe("admin SettingsView wechat connect controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
-  });
-
-  it("links GitHub OAuth Apps guide to GitHub developer settings", async () => {
-    getSettings.mockResolvedValueOnce({
-      ...baseSettingsResponse,
-      github_oauth_enabled: true,
-    });
-
-    const wrapper = mountView();
-
-    await flushPromises();
-    await openSecurityTab(wrapper);
-
-    const link = wrapper.get('[data-testid="github-oauth-apps-guide-link"]');
-    expect(link.text()).toContain("OAuth Apps");
-    expect(link.attributes("href")).toBe("https://github.com/settings/developers");
-    expect(link.attributes("target")).toBe("_blank");
-    expect(link.attributes("rel")).toContain("noopener");
   });
 
   it("preserves optional OIDC compatibility flags instead of forcing them on save", async () => {

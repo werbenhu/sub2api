@@ -216,24 +216,6 @@
 
       </form>
 
-      <div v-if="showOAuthLogin" class="space-y-3 pt-1">
-        <div class="flex items-center gap-3">
-          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-          <span class="text-xs text-gray-500 dark:text-dark-400">
-            {{ t('auth.oauthOrContinue') }}
-          </span>
-          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-        </div>
-
-        <EmailOAuthButtons
-          :disabled="registrationActionDisabled"
-          :github-enabled="githubOAuthEnabled"
-          :google-enabled="googleOAuthEnabled"
-          :show-divider="false"
-          @start="handleOAuthStart"
-        />
-
-      </div>
     </div>
 
     <!-- Footer -->
@@ -256,14 +238,11 @@ import { computed, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
-import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
-  buildOAuthLoginStartURL,
   getPublicSettings,
-  type OAuthLoginStart,
   validateInvitationCode
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
@@ -298,8 +277,6 @@ const registrationEnabled = ref<boolean>(true)
 const emailVerifyEnabled = ref<boolean>(false)
 const invitationCodeEnabled = ref<boolean>(false)
 const siteName = ref<string>('Sub2API')
-const githubOAuthEnabled = ref<boolean>(false)
-const googleOAuthEnabled = ref<boolean>(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
 // 域名限量注册开关：开启时非白名单域名可注册 1 个账户（由后端判定），前端不做白名单预检。
 const emailDomainQuotaEnabled = ref<boolean>(false)
@@ -342,8 +319,6 @@ const validationToastMessage = computed(() =>
   ''
 )
 
-const showOAuthLogin = computed(() => githubOAuthEnabled.value || googleOAuthEnabled.value)
-
 const agreementGateActive = computed(
   () => loginAgreementEnabled.value && !agreementAccepted.value
 )
@@ -365,8 +340,6 @@ onMounted(async () => {
     emailVerifyEnabled.value = settings.email_verify_enabled
     invitationCodeEnabled.value = settings.invitation_code_enabled
     siteName.value = settings.site_name || 'Sub2API'
-    githubOAuthEnabled.value = settings.github_oauth_enabled
-    googleOAuthEnabled.value = settings.google_oauth_enabled
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
@@ -511,11 +484,6 @@ function getInvitationErrorMessage(errorCode?: string): string {
     default:
       return t('auth.invitationCodeInvalid')
   }
-}
-
-async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
-  if (registrationActionDisabled.value) return
-  window.location.href = buildOAuthLoginStartURL(request)
 }
 
 // ==================== Validation ====================

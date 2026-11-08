@@ -130,10 +130,15 @@ func TestAdminService_CreateUser_AssignsDefaultSubscriptions(t *testing.T) {
 	settingService := NewSettingService(&settingRepoStub{values: map[string]string{
 		SettingKeyDefaultSubscriptions: `[{"group_id":5,"validity_days":30}]`,
 	}}, cfg)
+	keyRepo := &multiGroupAPIKeyRepoStub{}
+	keyService := NewAPIKeyService(keyRepo, multiGroupUserRepoStub{}, multiGroupGroupRepoStub{groups: map[int64]*Group{
+		5: {ID: 5, Status: StatusActive},
+	}}, multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, nil, &config.Config{})
 	svc := &adminServiceImpl{
-		userRepo:           repo,
-		settingService:     settingService,
-		defaultSubAssigner: assigner,
+		userRepo:             repo,
+		settingService:       settingService,
+		defaultSubAssigner:   assigner,
+		defaultAPIKeyCreator: keyService,
 	}
 
 	_, err := svc.CreateUser(context.Background(), &CreateUserInput{
@@ -145,4 +150,6 @@ func TestAdminService_CreateUser_AssignsDefaultSubscriptions(t *testing.T) {
 	require.Equal(t, int64(21), assigner.calls[0].UserID)
 	require.Equal(t, int64(5), assigner.calls[0].GroupID)
 	require.Equal(t, 30, assigner.calls[0].ValidityDays)
+	require.NotNil(t, keyRepo.created)
+	require.Equal(t, []int64{5}, keyRepo.created.GroupIDs)
 }

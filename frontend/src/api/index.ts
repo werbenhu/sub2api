@@ -7,7 +7,7 @@
 export { apiClient } from './client'
 
 // Auth API
-export { authAPI, isTotp2FARequired, type LoginResponse } from './auth'
+export { authAPI, type LoginResponse } from './auth'
 
 // User APIs
 export { keysAPI } from './keys'
@@ -15,8 +15,6 @@ export { usageAPI } from './usage'
 export { userAPI } from './user'
 export { userGroupsAPI } from './groups'
 export * as batchImageAPI from './batchImage'
-export { totpAPI } from './totp'
-export { passkeyAPI, type PasskeyCredentialSummary } from './passkey'
 
 // Admin APIs
 export { adminAPI } from './admin'

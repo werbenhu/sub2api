@@ -155,13 +155,15 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 		logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d",
 			input.ActorAdminID, user.ID)
 	}
-	s.assignDefaultSubscriptions(ctx, user.ID)
-	s.createDefaultAPIKeyForAssignedGroup(ctx, user)
+	assigned := s.assignDefaultSubscriptions(ctx, user)
+	if assigned || len(user.AllowedGroups) > 0 {
+		s.createDefaultAPIKeyForAssignedGroup(ctx, user)
+	}
 	return user, nil
 }
 
 func (s *adminServiceImpl) createDefaultAPIKeyForAssignedGroup(ctx context.Context, user *User) {
-	if s == nil || user == nil || user.Role != RoleUser || len(user.AllowedGroups) == 0 || s.defaultAPIKeyCreator == nil || s.groupRepo == nil {
+	if s == nil || user == nil || user.Role != RoleUser || s.defaultAPIKeyCreator == nil {
 		return
 	}
 	if s.apiKeyRepo != nil {
@@ -170,21 +172,8 @@ func (s *adminServiceImpl) createDefaultAPIKeyForAssignedGroup(ctx context.Conte
 			return
 		}
 	}
-	for _, groupID := range user.AllowedGroups {
-		if groupID <= 0 {
-			continue
-		}
-		group, err := s.groupRepo.GetByID(ctx, groupID)
-		if err != nil || group == nil || group.Status != StatusActive {
-			continue
-		}
-		if _, err := s.defaultAPIKeyCreator.Create(ctx, user.ID, CreateAPIKeyRequest{
-			Name:    "默认分组 Key",
-			GroupID: &groupID,
-		}); err != nil {
-			logger.LegacyPrintf("service.admin", "failed to create default api key: user_id=%d group_id=%d err=%v", user.ID, groupID, err)
-		}
-		return
+	if _, err := s.defaultAPIKeyCreator.Create(ctx, user.ID, CreateAPIKeyRequest{Name: "内部模型 Key"}); err != nil {
+		logger.LegacyPrintf("service.admin", "failed to create default api key: user_id=%d err=%v", user.ID, err)
 	}
 }
 
@@ -206,21 +195,60 @@ func (s *adminServiceImpl) ensureNotLastAdmin(ctx context.Context) error {
 	return nil
 }
 
-func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, userID int64) {
-	if s.settingService == nil || s.defaultSubAssigner == nil || userID <= 0 {
-		return
+func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, user *User) bool {
+	if s.defaultSubAssigner == nil || user == nil || user.ID <= 0 {
+		return false
 	}
-	items := s.settingService.GetDefaultSubscriptions(ctx)
-	for _, item := range items {
-		if _, _, err := s.defaultSubAssigner.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
-			UserID:       userID,
-			GroupID:      item.GroupID,
-			ValidityDays: item.ValidityDays,
-			Notes:        "auto assigned by default user subscriptions setting",
-		}); err != nil {
-			logger.LegacyPrintf("service.admin", "failed to assign default subscription: user_id=%d group_id=%d err=%v", userID, item.GroupID, err)
+	type assignment struct {
+		groupID int64
+		days    int
+	}
+	var assignments []assignment
+	if s.settingService != nil {
+		for _, item := range s.settingService.GetDefaultSubscriptions(ctx) {
+			assignments = append(assignments, assignment{groupID: item.GroupID, days: item.ValidityDays})
 		}
 	}
+	seen := make(map[int64]struct{}, len(assignments))
+	for _, item := range assignments {
+		seen[item.groupID] = struct{}{}
+	}
+	for _, groupID := range user.AllowedGroups {
+		if _, ok := seen[groupID]; ok {
+			continue
+		}
+		days := 30
+		if s.groupRepo != nil {
+			if group, err := s.groupRepo.GetByID(ctx, groupID); err == nil && group != nil && group.DefaultValidityDays > 0 {
+				days = group.DefaultValidityDays
+			}
+		}
+		assignments = append(assignments, assignment{groupID: groupID, days: days})
+		seen[groupID] = struct{}{}
+	}
+
+	assigned := false
+	allowedGroups := make([]int64, 0, len(assignments))
+	for _, item := range assignments {
+		if item.groupID <= 0 {
+			continue
+		}
+		days := item.days
+		if days <= 0 {
+			days = 30
+		}
+		if _, _, err := s.defaultSubAssigner.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
+			UserID: user.ID, GroupID: item.groupID, ValidityDays: days,
+			Notes: "auto assigned by internal user defaults",
+		}); err != nil {
+			logger.LegacyPrintf("service.admin", "failed to assign default subscription: user_id=%d group_id=%d err=%v", user.ID, item.groupID, err)
+			continue
+		}
+		allowedGroups = append(allowedGroups, item.groupID)
+		assigned = true
+	}
+	user.AllowedGroups = allowedGroups
+	return assigned
 }
 
 func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error) {

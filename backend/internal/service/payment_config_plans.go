@@ -226,6 +226,13 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {
+	count, err := s.countPendingOrdersByPlan(ctx, id)
+	if err != nil {
+		return fmt.Errorf("check pending orders: %w", err)
+	}
+	if count > 0 {
+		return infraerrors.Conflict("PENDING_ORDERS", "this plan has in-progress orders and cannot be deleted")
+	}
 	return s.entClient.SubscriptionPlan.DeleteOneID(id).Exec(ctx)
 }
 

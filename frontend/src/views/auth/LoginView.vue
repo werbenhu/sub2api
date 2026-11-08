@@ -120,24 +120,6 @@
           @open="showAgreementModal = true"
         />
 
-        <div v-if="showOAuthLogin" class="space-y-3 pt-1">
-          <div class="flex items-center gap-3">
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-            <span class="text-xs text-gray-500 dark:text-dark-400">
-              {{ t('auth.oauthOrContinue') }}
-            </span>
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-          </div>
-
-          <EmailOAuthButtons
-            :disabled="authActionDisabled"
-            :github-enabled="githubOAuthEnabled"
-            :google-enabled="googleOAuthEnabled"
-            :show-divider="false"
-            @start="handleOAuthStart"
-          />
-
-        </div>
       </form>
     </div>
 
@@ -155,15 +137,6 @@
     </template>
   </AuthLayout>
 
-  <!-- 2FA Modal -->
-  <TotpLoginModal
-    v-if="show2FAModal"
-    ref="totpModalRef"
-    :temp-token="totpTempToken"
-    :user-email-masked="totpUserEmailMasked"
-    @verify="handle2FAVerify"
-    @cancel="handle2FACancel"
-  />
 </template>
 
 <script setup lang="ts">
@@ -171,18 +144,11 @@ import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
-import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
-import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAuthStore, useAppStore } from '@/stores'
-import {
-  buildOAuthLoginStartURL,
-  getPublicSettings,
-  isTotp2FARequired,
-  type OAuthLoginStart
-} from '@/api/auth'
-import type { LoginAgreementDocument, TotpLoginResponse } from '@/types'
+import { getPublicSettings } from '@/api/auth'
+import type { LoginAgreementDocument } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
@@ -204,8 +170,6 @@ const publicSettingsLoaded = ref<boolean>(false)
 // Public settings
 const registrationEnabled = ref<boolean>(false)
 const backendModeEnabled = ref<boolean>(false)
-const githubOAuthEnabled = ref<boolean>(false)
-const googleOAuthEnabled = ref<boolean>(false)
 const passwordResetEnabled = ref<boolean>(false)
 const loginAgreementEnabled = ref<boolean>(false)
 const loginAgreementMode = ref<'modal' | 'checkbox' | string>('modal')
@@ -214,12 +178,6 @@ const loginAgreementRevision = ref<string>('')
 const loginAgreementDocuments = ref<LoginAgreementDocument[]>([])
 const agreementAccepted = ref<boolean>(false)
 const showAgreementModal = ref<boolean>(false)
-
-// 2FA state
-const show2FAModal = ref<boolean>(false)
-const totpTempToken = ref<string>('')
-const totpUserEmailMasked = ref<string>('')
-const totpModalRef = ref<InstanceType<typeof TotpLoginModal> | null>(null)
 
 const formData = reactive({
   email: '',
@@ -244,10 +202,6 @@ const authActionDisabled = computed(
 )
 
 
-const showOAuthLogin = computed(
-  () => !backendModeEnabled.value && (githubOAuthEnabled.value || googleOAuthEnabled.value)
-)
-
 watch(validationToastMessage, (value, previousValue) => {
   if (value && value !== previousValue) {
     appStore.showError(value)
@@ -269,8 +223,6 @@ onMounted(async () => {
     const settings = await getPublicSettings()
     registrationEnabled.value = settings.registration_enabled === true
     backendModeEnabled.value = settings.backend_mode_enabled
-    githubOAuthEnabled.value = settings.github_oauth_enabled
-    googleOAuthEnabled.value = settings.google_oauth_enabled
     backendModeEnabled.value = settings.backend_mode_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
     applyLoginAgreementSettings(settings)
@@ -398,20 +350,11 @@ async function handleLogin(): Promise<void> {
 
   try {
     // Call auth store login（阿里云 captchaVerifyParam 复用 turnstile_token 字段）
-    const response = await authStore.login({
+    await authStore.login({
       email: formData.email,
       password: formData.password
     })
 
-    // Check if 2FA is required
-    if (isTotp2FARequired(response)) {
-      const totpResponse = response as TotpLoginResponse
-      totpTempToken.value = totpResponse.temp_token || ''
-      totpUserEmailMasked.value = totpResponse.user_email_masked || ''
-      show2FAModal.value = true
-      isLoading.value = false
-      return
-    }
     appStore.showSuccess(t('auth.loginSuccess'))
 
     // Redirect to dashboard or intended route
@@ -427,45 +370,6 @@ async function handleLogin(): Promise<void> {
   }
 }
 
-
-async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
-  if (authActionDisabled.value) return
-  window.location.href = buildOAuthLoginStartURL(request)
-}
-
-// ==================== 2FA Handlers ====================
-
-async function handle2FAVerify(code: string): Promise<void> {
-  if (totpModalRef.value) {
-    totpModalRef.value.setVerifying(true)
-  }
-
-  try {
-    await authStore.login2FA(totpTempToken.value, code)
-
-    // Close modal and show success
-    show2FAModal.value = false
-    appStore.showSuccess(t('auth.loginSuccess'))
-
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
-    await router.push(redirectTo)
-  } catch (error: unknown) {
-    const err = error as { message?: string; response?: { data?: { message?: string } } }
-    const message = err.response?.data?.message || err.message || t('profile.totp.loginFailed')
-
-    if (totpModalRef.value) {
-      totpModalRef.value.setError(message)
-      totpModalRef.value.setVerifying(false)
-    }
-  }
-}
-
-function handle2FACancel(): void {
-  show2FAModal.value = false
-  totpTempToken.value = ''
-  totpUserEmailMasked.value = ''
-}
 </script>
 
 <style scoped>

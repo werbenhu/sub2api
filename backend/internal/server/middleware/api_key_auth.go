@@ -9,7 +9,10 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requestmodel"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -157,10 +160,30 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 			return
 		}
-		if abortIfAPIKeyGroupUnavailable(c, apiKey) {
+		deferWebSocketBilling := false
+		if apiKey.HasMultipleGroups() {
+			model, endpoint, err := requestModelForAPIKeyGroupResolution(c)
+			if err != nil {
+				if RejectRequestBodyReadError(c, err) {
+					return
+				}
+				AbortWithError(c, http.StatusBadRequest, "INVALID_REQUEST", "Failed to read request body")
+				return
+			}
+			deferWebSocketBilling = model == "" && strings.EqualFold(c.GetHeader("Upgrade"), "websocket")
+			if err := apiKeyService.ResolveGroupForModel(c.Request.Context(), apiKey, model, endpoint); err != nil {
+				status := http.StatusInternalServerError
+				if infraerrors.IsBadRequest(err) {
+					status = http.StatusBadRequest
+				}
+				AbortWithError(c, status, "GROUP_ROUTE_RESOLUTION_FAILED", err.Error())
+				return
+			}
+		}
+		if !deferWebSocketBilling && abortIfAPIKeyGroupUnavailable(c, apiKey) {
 			return
 		}
-		if abortIfAPIKeyGroupNotAllowed(c, apiKey) {
+		if !deferWebSocketBilling && abortIfAPIKeyGroupNotAllowed(c, apiKey) {
 			return
 		}
 		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
@@ -169,7 +192,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// Async image task polling only reads data that already belongs to the
 		// authenticated key and must remain available after the completed
 		// generation consumes the key's remaining balance.
-		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
+		skipBilling := deferWebSocketBilling || c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
 
@@ -443,4 +466,50 @@ func validateAPIKeyGroupAvailable(apiKey *service.APIKey) (string, string, bool)
 		return "GROUP_DISABLED", "API Key 所属分组已停用", false
 	}
 	return "", "", true
+}
+
+func requestModelForAPIKeyGroupResolution(c *gin.Context) (string, string, error) {
+	if c == nil || c.Request == nil {
+		return "", service.CompositeRouteEndpointAny, nil
+	}
+	path := c.Request.URL.Path
+	endpoint := service.CompositeRouteEndpointAny
+	switch {
+	case strings.Contains(path, "/messages/count_tokens"):
+		endpoint = service.CompositeRouteEndpointCountTokens
+	case strings.Contains(path, "/messages"):
+		endpoint = service.CompositeRouteEndpointMessages
+	case strings.Contains(path, "/responses") || strings.Contains(path, "/backend-api/codex"):
+		endpoint = service.CompositeRouteEndpointResponses
+	case strings.Contains(path, "/chat/completions"):
+		endpoint = service.CompositeRouteEndpointChatCompletions
+	case strings.Contains(path, "/embeddings"):
+		endpoint = service.CompositeRouteEndpointEmbeddings
+	case strings.Contains(path, "/images"):
+		endpoint = service.CompositeRouteEndpointImages
+	case strings.HasPrefix(path, "/v1beta/"):
+		endpoint = service.CompositeRouteEndpointGemini
+	}
+	if model := strings.TrimSpace(c.Param("model")); model != "" {
+		return model, endpoint, nil
+	}
+	if action := strings.TrimPrefix(strings.TrimSpace(c.Param("modelAction")), "/"); action != "" {
+		if index := strings.LastIndex(action, ":"); index >= 0 {
+			action = action[:index]
+		}
+		return strings.TrimSpace(action), endpoint, nil
+	}
+	if model := strings.TrimSpace(c.Query("model")); model != "" {
+		return model, endpoint, nil
+	}
+	if c.Request.Method == http.MethodGet || c.Request.Body == nil {
+		return "", endpoint, nil
+	}
+	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	if err != nil {
+		return "", endpoint, err
+	}
+	requestmodel.ResetRequestBody(c.Request, body)
+	model := requestmodel.FromBodyForRoute(c.FullPath(), c.GetHeader("Content-Type"), body)
+	return model, endpoint, nil
 }

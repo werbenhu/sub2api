@@ -673,7 +673,7 @@ export default {
       amountRequired: '请输入有效金额',
       insufficientBalance: '余额不足',
       setAllowedGroups: '设置允许分组',
-      allowedGroupsHint: '选择此用户可以使用的标准分组。订阅类型分组请在订阅管理中配置。',
+      allowedGroupsHint: '选择后自动创建对应订阅、专属授权和覆盖这些分组的默认 Key',
       noStandardGroups: '暂无标准分组',
       allowAllGroups: '允许全部分组',
       allowAllGroupsHint: '用户可以使用任何非专属分组',

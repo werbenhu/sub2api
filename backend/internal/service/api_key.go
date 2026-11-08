@@ -33,6 +33,7 @@ type APIKey struct {
 	Key         string
 	Name        string
 	GroupID     *int64
+	GroupIDs    []int64
 	Status      string
 	IPWhitelist []string
 	IPBlacklist []string
@@ -62,6 +63,23 @@ type APIKey struct {
 	Window5hStart *time.Time // Start of current 5h window
 	Window1dStart *time.Time // Start of current 1d window
 	Window7dStart *time.Time // Start of current 7d window
+}
+
+func (k *APIKey) ConfiguredGroupIDs() []int64 {
+	if k == nil {
+		return nil
+	}
+	if len(k.GroupIDs) > 0 {
+		return append([]int64(nil), k.GroupIDs...)
+	}
+	if k.GroupID != nil && *k.GroupID > 0 {
+		return []int64{*k.GroupID}
+	}
+	return nil
+}
+
+func (k *APIKey) HasMultipleGroups() bool {
+	return len(k.GroupIDs) > 1
 }
 
 func (k *APIKey) IsActive() bool {

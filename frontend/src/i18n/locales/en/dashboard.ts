@@ -145,6 +145,8 @@ export default {
     failedToDelete: 'Failed to delete API key',
     failedToUpdateStatus: 'Failed to update API key status',
     clickToChangeGroup: 'Click to change group',
+    multiGroupHint: 'Select multiple groups; each request uses the matching group, route and subscription',
+    groupCount: '{count} groups',
     groupChangedSuccess: 'Group changed successfully',
     failedToChangeGroup: 'Failed to change group',
     groupRequired: 'Please select a group',

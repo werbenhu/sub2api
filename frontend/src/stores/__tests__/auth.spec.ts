@@ -4,7 +4,6 @@ import { useAuthStore } from '@/stores/auth'
 
 // Mock authAPI
 const mockLogin = vi.fn()
-const mockLogin2FA = vi.fn()
 const mockLogout = vi.fn()
 const mockGetCurrentUser = vi.fn()
 const mockRegister = vi.fn()
@@ -13,13 +12,11 @@ const mockRefreshToken = vi.fn()
 vi.mock('@/api', () => ({
   authAPI: {
     login: (...args: any[]) => mockLogin(...args),
-    login2FA: (...args: any[]) => mockLogin2FA(...args),
     logout: (...args: any[]) => mockLogout(...args),
     getCurrentUser: (...args: any[]) => mockGetCurrentUser(...args),
     register: (...args: any[]) => mockRegister(...args),
     refreshToken: (...args: any[]) => mockRefreshToken(...args),
   },
-  isTotp2FARequired: (response: any) => response?.requires_2fa === true,
 }))
 
 const fakeUser = {
@@ -92,46 +89,9 @@ describe('useAuthStore', () => {
       expect(store.isAuthenticated).toBe(false)
     })
 
-    it('需要 2FA 时返回响应但不设置认证状态', async () => {
-      const twoFAResponse = { requires_2fa: true, temp_token: 'temp-123' }
-      mockLogin.mockResolvedValue(twoFAResponse)
-      const store = useAuthStore()
-
-      const result = await store.login({ email: 'test@example.com', password: '123456' })
-
-      expect(result).toEqual(twoFAResponse)
-      expect(store.token).toBeNull()
-      expect(store.isAuthenticated).toBe(false)
-    })
   })
 
   // --- login2FA ---
-
-  describe('login2FA', () => {
-    it('2FA 验证成功后设置认证状态', async () => {
-      mockLogin2FA.mockResolvedValue(fakeAuthResponse)
-      const store = useAuthStore()
-
-      const user = await store.login2FA('temp-123', '654321')
-
-      expect(store.token).toBe('test-token-123')
-      expect(store.user).toEqual(fakeUser)
-      expect(user).toEqual(fakeUser)
-      expect(mockLogin2FA).toHaveBeenCalledWith({
-        temp_token: 'temp-123',
-        totp_code: '654321',
-      })
-    })
-
-    it('2FA 验证失败时清除状态并抛出错误', async () => {
-      mockLogin2FA.mockRejectedValue(new Error('Invalid TOTP'))
-      const store = useAuthStore()
-
-      await expect(store.login2FA('temp-123', '000000')).rejects.toThrow('Invalid TOTP')
-      expect(store.token).toBeNull()
-      expect(store.isAuthenticated).toBe(false)
-    })
-  })
 
   // --- logout ---
 

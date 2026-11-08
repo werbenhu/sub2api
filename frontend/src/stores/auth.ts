@@ -5,13 +5,12 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
-import { authAPI, isTotp2FARequired, passkeyAPI, type LoginResponse } from '@/api'
+import { authAPI, type LoginResponse } from '@/api'
 import type {
   User,
   LoginRequest,
   RegisterRequest,
-  AuthResponse,
-  ActionCaptchaRequestProof
+  AuthResponse
 } from '@/types'
 
 const AUTH_TOKEN_KEY = 'auth_token'
@@ -240,17 +239,12 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * User login
    * @param credentials - Login credentials (email and password)
-   * @returns Promise resolving to the login response (may require 2FA)
+   * @returns Promise resolving to the authenticated login response
    * @throws Error if login fails
    */
   async function login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
       const response = await authAPI.login(credentials)
-
-      // If 2FA is required, return the response without setting auth state
-      if (isTotp2FARequired(response)) {
-        return response
-      }
 
       // Set auth state from the response
       setAuthFromResponse(response)
@@ -258,35 +252,6 @@ export const useAuthStore = defineStore('auth', () => {
       return response
     } catch (error) {
       // Clear any partial state on error
-      clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })
-      throw error
-    }
-  }
-
-  /**
-   * Complete login with 2FA code
-   * @param tempToken - Temporary token from initial login
-   * @param totpCode - 6-digit TOTP code
-   * @returns Promise resolving to the authenticated user
-   * @throws Error if 2FA verification fails
-   */
-  async function login2FA(tempToken: string, totpCode: string): Promise<User> {
-    try {
-      const response = await authAPI.login2FA({ temp_token: tempToken, totp_code: totpCode })
-      setAuthFromResponse(response)
-      return user.value!
-    } catch (error) {
-      clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })
-      throw error
-    }
-  }
-
-  async function loginWithPasskey(proof?: ActionCaptchaRequestProof): Promise<User> {
-    try {
-      const response = await passkeyAPI.login(proof)
-      setAuthFromResponse(response)
-      return user.value!
-    } catch (error) {
       clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })
       throw error
     }
@@ -503,8 +468,6 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Actions
     login,
-    loginWithPasskey,
-    login2FA,
     register,
     setToken,
     logout,

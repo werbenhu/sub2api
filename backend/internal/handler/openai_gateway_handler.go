@@ -2572,6 +2572,24 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "model is required in first response.create payload")
 		return
 	}
+	if apiKey.HasMultipleGroups() {
+		if err := h.apiKeyService.ResolveGroupForModel(c.Request.Context(), apiKey, reqModel, service.CompositeRouteEndpointResponses); err != nil {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, err.Error())
+			return
+		}
+		subscription, err := h.apiKeyService.ActiveSubscriptionForKey(c.Request.Context(), apiKey)
+		if err != nil {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "No active subscription found for the selected group")
+			return
+		}
+		if h.billingCacheService != nil {
+			if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, ""); err != nil {
+				closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, err.Error())
+				return
+			}
+		}
+		c.Set(string(middleware2.ContextKeySubscription), subscription)
+	}
 	// 分组级模型白名单：首帧校验客户端模型，不通过则关闭连接并标记运维原因。
 	// 必须在合成路由解析和上游模型映射之前执行。
 	// 与 HTTP 准入一致：帧内重复 model 键/大小写变体可能被上游按末值绑定，

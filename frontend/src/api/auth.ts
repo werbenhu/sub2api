@@ -14,15 +14,10 @@ import type {
   SendVerifyCodeRequest,
   SendVerifyCodeResponse,
   PublicSettings,
-  ActionCaptchaRequestProof,
-  TotpLoginResponse,
-  TotpLogin2FARequest
+  ActionCaptchaRequestProof
 } from '@/types'
 
-/**
- * Login response type - can be either full auth or 2FA required
- */
-export type LoginResponse = AuthResponse | TotpLoginResponse
+export type LoginResponse = AuthResponse
 
 export type OAuthLoginProvider =
   | 'github'
@@ -57,13 +52,6 @@ export async function startOAuthLogin(
     { params: request.params }
   )
   return data
-}
-
-/**
- * Type guard to check if login response requires 2FA
- */
-export function isTotp2FARequired(response: LoginResponse): response is TotpLoginResponse {
-  return 'requires_2fa' in response && response.requires_2fa === true
 }
 
 /**
@@ -124,35 +112,11 @@ export function clearAuthToken(): void {
 /**
  * User login
  * @param credentials - Email and password
- * @returns Authentication response with token and user data, or 2FA required response
+ * @returns Authentication response with token and user data
  */
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>('/auth/login', credentials)
 
-  // Only store token if 2FA is not required
-  if (!isTotp2FARequired(data)) {
-    setAuthToken(data.access_token)
-    if (data.refresh_token) {
-      setRefreshToken(data.refresh_token)
-    }
-    if (data.expires_in) {
-      setTokenExpiresAt(data.expires_in)
-    }
-    localStorage.setItem('auth_user', JSON.stringify(data.user))
-  }
-
-  return data
-}
-
-/**
- * Complete login with 2FA code
- * @param request - Temp token and TOTP code
- * @returns Authentication response with token and user data
- */
-export async function login2FA(request: TotpLogin2FARequest): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/auth/login/2fa', request)
-
-  // Store token and user data
   setAuthToken(data.access_token)
   if (data.refresh_token) {
     setRefreshToken(data.refresh_token)
@@ -495,8 +459,6 @@ export async function exchangePendingOAuthCompletion(
 
 export const authAPI = {
   login,
-  login2FA,
-  isTotp2FARequired,
   register,
   getCurrentUser,
   logout,

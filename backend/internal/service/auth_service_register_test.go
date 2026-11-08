@@ -774,6 +774,12 @@ func TestAuthService_Register_AssignsDefaultSubscriptions(t *testing.T) {
 		SettingKeyAuthSourceDefaultEmailGrantOnSignup: "false",
 	}, nil, nil)
 	service.defaultSubAssigner = assigner
+	keyRepo := &multiGroupAPIKeyRepoStub{}
+	service.defaultAPIKeyCreator = NewAPIKeyService(
+		keyRepo, multiGroupUserRepoStub{},
+		multiGroupGroupRepoStub{groups: map[int64]*Group{11: {ID: 11, Status: StatusActive}, 12: {ID: 12, Status: StatusActive}}},
+		multiGroupSubscriptionRepoStub{groupIDs: []int64{11, 12}}, nil, nil, &config.Config{},
+	)
 
 	_, user, err := service.Register(context.Background(), "default-sub@test.com", "password")
 	require.NoError(t, err)
@@ -784,6 +790,8 @@ func TestAuthService_Register_AssignsDefaultSubscriptions(t *testing.T) {
 	require.Equal(t, 30, assigner.calls[0].ValidityDays)
 	require.Equal(t, int64(12), assigner.calls[1].GroupID)
 	require.Equal(t, 7, assigner.calls[1].ValidityDays)
+	require.NotNil(t, keyRepo.created)
+	require.Equal(t, []int64{11, 12}, keyRepo.created.GroupIDs)
 }
 
 func TestAuthService_Register_UsesEmailAuthSourceDefaultsWhenGrantEnabled(t *testing.T) {

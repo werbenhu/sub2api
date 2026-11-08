@@ -216,6 +216,7 @@ type APIKeyAuthCacheInvalidator interface {
 type CreateAPIKeyRequest struct {
 	Name        string   `json:"name"`
 	GroupID     *int64   `json:"group_id"`
+	GroupIDs    []int64  `json:"group_ids"`
 	CustomKey   *string  `json:"custom_key"`   // 可选的自定义key
 	IPWhitelist []string `json:"ip_whitelist"` // IP 白名单
 	IPBlacklist []string `json:"ip_blacklist"` // IP 黑名单
@@ -234,6 +235,7 @@ type CreateAPIKeyRequest struct {
 type UpdateAPIKeyRequest struct {
 	Name        *string   `json:"name"`
 	GroupID     *int64    `json:"group_id"`
+	GroupIDs    []int64   `json:"group_ids"`
 	Status      *string   `json:"status"`
 	IPWhitelist *[]string `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
 	IPBlacklist *[]string `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
@@ -296,6 +298,7 @@ type APIKeyService struct {
 	cache                     APIKeyCache
 	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
 	concurrencyService        *ConcurrencyService
+	compositeResolver         *CompositeRouteResolver
 	cfg                       *config.Config
 	authCacheL1               *ristretto.Cache
 	authNegativeCacheL1       *ristretto.Cache
@@ -372,6 +375,10 @@ func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidat
 
 func (s *APIKeyService) SetConcurrencyService(concurrencyService *ConcurrencyService) {
 	s.concurrencyService = concurrencyService
+}
+
+func (s *APIKeyService) SetCompositeRouteResolver(resolver *CompositeRouteResolver) {
+	s.compositeResolver = resolver
 }
 
 func (s *APIKeyService) compileAPIKeyIPRules(apiKey *APIKey) {
@@ -501,13 +508,20 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
-	// When a user omits the group, use the first active group assigned to that
-	// user. An explicit group remains valid so special users can use dedicated
-	// groups.
-	if req.GroupID == nil {
-		if groupID := s.defaultUserGroupID(ctx, user); groupID > 0 {
-			req.GroupID = &groupID
+	req.GroupIDs = normalizeAPIKeyGroupIDs(req.GroupIDs)
+	if len(req.GroupIDs) == 0 && req.GroupID != nil {
+		req.GroupIDs = []int64{*req.GroupID}
+	}
+	if len(req.GroupIDs) == 0 {
+		req.GroupIDs = s.defaultUserGroupIDs(ctx, user)
+		if len(req.GroupIDs) == 0 {
+			if groupID := s.defaultUserGroupID(ctx, user); groupID > 0 {
+				req.GroupIDs = []int64{groupID}
+			}
 		}
+	}
+	if len(req.GroupIDs) > 0 {
+		req.GroupID = int64Pointer(req.GroupIDs[0])
 	}
 
 	// 验证 IP 白名单格式
@@ -524,16 +538,9 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 	}
 
-	// 验证分组权限（如果指定了分组）
-	if req.GroupID != nil {
-		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("get group: %w", err)
-		}
-
-		// 检查用户是否可以绑定该分组
-		if !s.canUserBindGroup(ctx, user, group) {
-			return nil, ErrGroupNotAllowed
+	if len(req.GroupIDs) > 0 {
+		if err := s.validateAPIKeyGroups(ctx, user, req.GroupIDs); err != nil {
+			return nil, err
 		}
 	}
 
@@ -582,6 +589,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		Key:         key,
 		Name:        html.EscapeString(req.Name),
 		GroupID:     req.GroupID,
+		GroupIDs:    req.GroupIDs,
 		Status:      StatusActive,
 		IPWhitelist: req.IPWhitelist,
 		IPBlacklist: req.IPBlacklist,
@@ -856,23 +864,35 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		fields.Name = true
 	}
 
-	if req.GroupID != nil {
-		// 验证分组权限
+	if req.GroupIDs != nil {
+		groupIDs := normalizeAPIKeyGroupIDs(req.GroupIDs)
 		user, err := s.userRepo.GetByID(ctx, userID)
 		if err != nil {
 			return nil, fmt.Errorf("get user: %w", err)
 		}
-
+		if err := s.validateAPIKeyGroups(ctx, user, groupIDs); err != nil {
+			return nil, err
+		}
+		apiKey.GroupIDs = groupIDs
+		apiKey.GroupID = nil
+		if len(groupIDs) > 0 {
+			apiKey.GroupID = int64Pointer(groupIDs[0])
+		}
+		fields.GroupID = true
+	} else if req.GroupID != nil {
+		user, err := s.userRepo.GetByID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("get user: %w", err)
+		}
 		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
 		if err != nil {
 			return nil, fmt.Errorf("get group: %w", err)
 		}
-
 		if !s.canUserBindGroup(ctx, user, group) {
 			return nil, ErrGroupNotAllowed
 		}
-
 		apiKey.GroupID = req.GroupID
+		apiKey.GroupIDs = []int64{*req.GroupID}
 		fields.GroupID = true
 	}
 
