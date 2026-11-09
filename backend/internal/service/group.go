@@ -148,7 +148,7 @@ type Group struct {
 // IsGroupBindableInSimpleMode is the shared policy for groups that may be
 // surfaced and bound to accounts while running in simple mode.
 func IsGroupBindableInSimpleMode(group *Group) bool {
-	return group != nil && group.Platform != PlatformComposite
+	return group != nil
 }
 
 func (g *Group) IsActive() bool {

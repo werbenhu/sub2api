@@ -29,20 +29,7 @@ func (s *adminServiceImpl) ValidateSimpleModeGroupOperation(operation AdminGroup
 
 func (s *adminServiceImpl) ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, sortBy, sortOrder string) ([]Group, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
-	var groups []Group
-	var result *pagination.PaginationResult
-	var err error
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		repo, ok := s.groupRepo.(interface {
-			ListBindableWithFilters(context.Context, pagination.PaginationParams, string, string, string, *bool) ([]Group, *pagination.PaginationResult, error)
-		})
-		if !ok {
-			return nil, 0, errors.New("group repository does not support simple-mode filtering")
-		}
-		groups, result, err = repo.ListBindableWithFilters(ctx, params, platform, status, search, isExclusive)
-	} else {
-		groups, result, err = s.groupRepo.ListWithFilters(ctx, params, platform, status, search, isExclusive)
-	}
+	groups, result, err := s.groupRepo.ListWithFilters(ctx, params, platform, status, search, isExclusive)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -77,7 +64,7 @@ func (s *adminServiceImpl) GetGroup(ctx context.Context, id int64) (*Group, erro
 
 func (s *adminServiceImpl) validateSimpleModeGroupAccess(group *Group) error {
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && !IsGroupBindableInSimpleMode(group) {
-		return infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups are not supported in simple mode")
+		return infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "group is not available")
 	}
 	return nil
 }
@@ -444,7 +431,7 @@ func normalizeCreateGroupInputForSimpleMode(input *CreateGroupInput) {
 		return
 	}
 	*input = CreateGroupInput{
-		Name: input.Name, Description: input.Description, I18n: input.I18n, Platform: input.Platform,
+		Name: input.Name, Description: input.Description, I18n: input.I18n, Platform: input.Platform, Platforms: input.Platforms,
 		RateMultiplier: 1, SubscriptionType: SubscriptionTypeSubscription,
 	}
 }
@@ -453,7 +440,7 @@ func normalizeUpdateGroupInputForSimpleMode(input *UpdateGroupInput) {
 	if input == nil {
 		return
 	}
-	*input = UpdateGroupInput{Name: input.Name, Description: input.Description, I18n: input.I18n}
+	*input = UpdateGroupInput{Name: input.Name, Description: input.Description, I18n: input.I18n, Platform: input.Platform, Platforms: input.Platforms}
 }
 
 func normalizeGroupPlatforms(platform string, platforms []string) (string, []string, error) {
@@ -481,9 +468,6 @@ func normalizeGroupPlatforms(platform string, platforms []string) (string, []str
 }
 
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && NormalizeGroupPlatform(input.Platform) == PlatformComposite {
-		return nil, infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups are not supported in simple mode")
-	}
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		normalizeCreateGroupInputForSimpleMode(input)
 	}
@@ -842,9 +826,6 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if err := s.validateSimpleModeGroupAccess(group); err != nil {
 		return nil, err
-	}
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && input.Platform == PlatformComposite {
-		return nil, infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups are not supported in simple mode")
 	}
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		normalizeUpdateGroupInputForSimpleMode(input)

@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { defineComponent, nextTick, ref } from 'vue'
 
 import Select from '../Select.vue'
 
@@ -63,6 +63,38 @@ afterEach(() => {
   setViewportWidth(originalInnerWidth)
   vi.useRealTimers()
   vi.restoreAllMocks()
+})
+
+describe('Select boolean multiple attribute', () => {
+  it('keeps multiple selections and the dropdown open with a bare multiple attribute', async () => {
+    const wrapper = mount(defineComponent({
+      components: { Select },
+      setup() {
+        return {
+          selected: ref<string[]>([]),
+          options: [{ value: 'openai', label: 'OpenAI' }, { value: 'gemini', label: 'Gemini' }],
+        }
+      },
+      template: '<Select v-model="selected" multiple :options="options" />',
+    }))
+    unmountWrapper = () => wrapper.unmount()
+    await wrapper.get('button').trigger('click')
+    const dropdown = document.body.querySelector<HTMLElement>('[role="listbox"]')!
+    expect(dropdown.getAttribute('aria-multiselectable')).toBe('true')
+    const options = dropdown.querySelectorAll<HTMLElement>('[role="option"]')
+    options[0]!.click()
+    await nextTick()
+    options[1]!.click()
+    await nextTick()
+
+    expect(wrapper.getComponent(Select).props('modelValue')).toEqual(['openai', 'gemini'])
+    expect(wrapper.get('button').attributes('aria-expanded')).toBe('true')
+    expect([...options].map(option => option.getAttribute('aria-selected'))).toEqual(['true', 'true'])
+
+    options[0]!.click()
+    await nextTick()
+    expect(wrapper.getComponent(Select).props('modelValue')).toEqual(['gemini'])
+  })
 })
 
 describe('Select dropdown viewport constraints', () => {

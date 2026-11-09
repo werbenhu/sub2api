@@ -19,6 +19,33 @@ func testConfig() *config.Config {
 	return &config.Config{RunMode: config.RunModeStandard}
 }
 
+func TestGatewayServiceSimpleModeCompositeSelection(t *testing.T) {
+	groupID := int64(77)
+	group := &Group{ID: groupID, Platform: PlatformComposite, Platforms: []string{PlatformAnthropic, PlatformOpenAI}, Status: StatusActive, Hydrated: true}
+	repo := &mockAccountRepoForPlatform{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+		},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+	}
+	svc := &GatewayService{
+		cfg: &config.Config{RunMode: config.RunModeSimple}, accountRepo: repo,
+		groupRepo:         &mockGroupRepoForGateway{groups: map[int64]*Group{groupID: group}},
+		compositeResolver: NewCompositeRouteResolver(nil),
+	}
+	for model, expected := range map[string]string{"claude-sonnet-4-5": PlatformAnthropic, "gpt-5": PlatformOpenAI} {
+		account, err := svc.SelectAccountForModel(context.Background(), &groupID, "", model)
+		require.NoError(t, err)
+		require.Equal(t, expected, account.Platform)
+	}
+	_, err := svc.SelectAccountForModel(context.Background(), &groupID, "", "gemini-2.5-flash")
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+}
+
 // mockAccountRepoForPlatform 单平台测试用的 mock
 type mockAccountRepoForPlatform struct {
 	accounts         []Account

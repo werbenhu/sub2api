@@ -267,7 +267,7 @@ func TestDuplicateAccountPreservesUngroupedState(t *testing.T) {
 	require.NotContains(t, repo.groupsOf, duplicate.ID)
 }
 
-func TestDuplicateAccountSimpleModeRejectsCompositeGroupBinding(t *testing.T) {
+func TestDuplicateAccountSimpleModePreservesCompositeGroupBinding(t *testing.T) {
 	ctx := context.Background()
 	repo := newDuplicateAccountRepoStub()
 	groupRepo := &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
@@ -283,10 +283,11 @@ func TestDuplicateAccountSimpleModeRejectsCompositeGroupBinding(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, source))
 
-	_, err := svc.DuplicateAccount(ctx, source.ID, "admin:1", "")
+	duplicate, err := svc.DuplicateAccount(ctx, source.ID, "admin:1", "")
 
-	require.Equal(t, "SIMPLE_MODE_GROUP_NOT_BINDABLE", infraerrors.Reason(err))
-	require.Len(t, repo.accounts, 1)
+	require.NoError(t, err)
+	require.Equal(t, []int64{9}, duplicate.GroupIDs)
+	require.Len(t, repo.accounts, 2)
 }
 
 func TestDuplicateAccountAtomicCreateFailureLeavesNoOrphan(t *testing.T) {

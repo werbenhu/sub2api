@@ -178,6 +178,7 @@ function mountView() {
 describe('GroupsView duplicate action', () => {
   beforeEach(() => {
     authState.isSimpleMode = false
+    vi.mocked(adminAPI.groups.create).mockReset()
     localStorage.clear()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     for (const fn of [
@@ -239,7 +240,7 @@ describe('GroupsView duplicate action', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="group-duplicate"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="group-composite-routes"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="group-composite-routes"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="group-rate-multipliers"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="group-rpm-overrides"]').exists()).toBe(false)
     wrapper.unmount()
@@ -332,19 +333,40 @@ describe('GroupsView duplicate action', () => {
     wrapper.unmount()
   })
 
-  it('uses a single platform selector in simple mode', async () => {
+  it('creates a group with multiple platforms in simple mode', async () => {
+    authState.isSimpleMode = true
+    vi.mocked(adminAPI.groups.create).mockResolvedValue({ ...sourceGroup, platform: 'composite', platforms: ['openai', 'gemini'] })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await wrapper.get('[data-tour="group-form-name"]').setValue('Multi')
+    const select = wrapper.findAllComponents({ name: 'Select' }).find(item => item.attributes('data-tour') === 'group-form-platform')!
+    expect(select.props('multiple')).toBe(true)
+    select.vm.$emit('update:modelValue', ['openai', 'gemini'])
+    select.vm.$emit('change', ['openai', 'gemini'])
+    await flushPromises()
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+    expect(adminAPI.groups.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Multi', platform: 'composite', platforms: ['openai', 'gemini'] }))
+    wrapper.unmount()
+  })
+
+  it('saves multiple platform selections in simple mode', async () => {
     authState.isSimpleMode = true
     const wrapper = mountView()
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
     await flushPromises()
     const select = wrapper.findAllComponents({ name: 'Select' }).find(item => item.attributes('data-tour') === 'group-form-platform')!
-    expect(select.props('multiple')).toBeFalsy()
-    expect(select.props('modelValue')).toBe('openai')
-    select.vm.$emit('update:modelValue', 'gemini')
-    select.vm.$emit('change', 'gemini')
+    expect(select.props('multiple')).toBe(true)
+    expect(select.props('modelValue')).toEqual(['openai'])
+    select.vm.$emit('update:modelValue', ['openai', 'gemini'])
+    select.vm.$emit('change', ['openai', 'gemini'])
     await flushPromises()
-    expect(select.props('modelValue')).toBe('gemini')
+    expect(select.props('modelValue')).toEqual(['openai', 'gemini'])
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({ platform: 'composite', platforms: ['openai', 'gemini'] }))
     wrapper.unmount()
   })
 

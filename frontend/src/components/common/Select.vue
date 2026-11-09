@@ -153,7 +153,8 @@ type SelectValue = string | number | boolean | null
 interface Props<M extends boolean = false> {
   modelValue: M extends true ? SelectValue[] : SelectValue | undefined
   options: SelectOption[] | Array<Record<string, unknown>>
-  multiple?: M
+  // Keep Boolean visible to Vue's runtime prop inference for bare `multiple` attributes.
+  multiple?: M & boolean
   placeholder?: string
   disabled?: boolean
   error?: boolean

@@ -1642,7 +1642,7 @@ func (s *adminServiceImpl) ValidateAccountGroupBindings(ctx context.Context, gro
 			return fmt.Errorf("get group: %w", err)
 		}
 		if !IsGroupBindableInSimpleMode(group) {
-			return infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups cannot be bound in simple mode")
+			return infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "group is not available")
 		}
 	}
 	return nil

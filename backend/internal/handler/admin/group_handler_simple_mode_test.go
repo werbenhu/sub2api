@@ -95,15 +95,46 @@ func TestGroupHandlerSimpleModeSanitizesCommercialFields(t *testing.T) {
 	require.Nil(t, updated.RPMLimit)
 }
 
-func TestGroupHandlerSimpleModeRejectsCompositeBeforeService(t *testing.T) {
+func TestGroupHandlerSimpleModePreservesCompositePlatforms(t *testing.T) {
 	svc := newStubAdminService()
 	r := newSimpleModeGroupRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/groups", bytes.NewBufferString(`{"name":"composite","platform":"composite"}`))
+	req := httptest.NewRequest(http.MethodPost, "/groups", bytes.NewBufferString(`{"name":"composite","platform":"composite","platforms":["anthropic","openai"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code)
-	require.Empty(t, svc.createdGroups)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Len(t, svc.createdGroups, 1)
+	require.Equal(t, service.PlatformComposite, svc.createdGroups[0].Platform)
+	require.Equal(t, []string{service.PlatformAnthropic, service.PlatformOpenAI}, svc.createdGroups[0].Platforms)
+	req = httptest.NewRequest(http.MethodPut, "/groups/2", bytes.NewBufferString(`{"platform":"composite","platforms":["gemini","antigravity"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	res = httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Len(t, svc.updatedGroups, 1)
+	require.Equal(t, service.PlatformComposite, svc.updatedGroups[0].Platform)
+	require.Equal(t, []string{service.PlatformGemini, service.PlatformAntigravity}, *svc.updatedGroups[0].Platforms)
+}
+
+func TestGroupHandlerSimpleModeAllowsCompositeRouteOperations(t *testing.T) {
+	for _, tt := range []struct{ method, path, body string }{
+		{http.MethodGet, "/groups/1/composite-routes", ""},
+		{http.MethodPost, "/groups/1/composite-routes", `{"public_model":"shared","target_platform":"openai"}`},
+		{http.MethodPost, "/groups/1/composite-routes/preview", `{"model":"gpt-5"}`},
+		{http.MethodPut, "/groups/1/composite-routes/2", `{"public_model":"shared","target_platform":"openai"}`},
+		{http.MethodDelete, "/groups/1/composite-routes/2", ""},
+	} {
+		t.Run(tt.method+tt.path, func(t *testing.T) {
+			svc := newStubAdminService()
+			router := newSimpleModeGroupRouter(svc)
+			request := httptest.NewRequest(tt.method, tt.path, bytes.NewBufferString(tt.body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			require.Contains(t, []int{http.StatusOK, http.StatusCreated}, response.Code, response.Body.String())
+			require.Equal(t, 1, svc.advancedGroupOperationCalls)
+		})
+	}
 }
 
 func TestGroupHandlerSimpleModeDeleteRejectsNonEmptyGroupBeforeCascade(t *testing.T) {
@@ -146,7 +177,8 @@ func TestGroupHandlerSimpleModeResponseUsesFieldAllowlist(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := newStubAdminService()
 	svc.groups = []service.Group{{
-		ID: 1, Name: "basic", Description: "allowed", Platform: service.PlatformAnthropic,
+		ID: 1, Name: "basic", Description: "allowed", Platform: service.PlatformComposite,
+		Platforms:    []string{service.PlatformAnthropic, service.PlatformOpenAI},
 		AccountCount: 3, ActiveAccountCount: 2, RateLimitedAccountCount: 1,
 		Status: service.StatusActive, RateMultiplier: 9, RPMLimit: 42,
 		LongContextPricingEnabled: true,
@@ -170,10 +202,11 @@ func TestGroupHandlerSimpleModeResponseUsesFieldAllowlist(t *testing.T) {
 	item := payload.Data.Items[0]
 	require.Equal(t, "basic", item["name"])
 	require.Equal(t, "allowed", item["description"])
-	require.Equal(t, "anthropic", item["platform"])
+	require.Equal(t, "composite", item["platform"])
+	require.Equal(t, []any{"anthropic", "openai"}, item["platforms"])
 	require.Equal(t, float64(3), item["account_count"])
 	require.ElementsMatch(t, []string{
-		"id", "name", "description", "platform", "status", "account_count",
+		"id", "name", "description", "platform", "platforms", "status", "account_count",
 		"active_account_count", "rate_limited_account_count", "sort_order", "created_at", "updated_at",
 	}, mapKeys(item))
 	for _, forbidden := range []string{
@@ -195,7 +228,7 @@ func TestGroupHandlerSimpleModeListsOnlyBindableGroups(t *testing.T) {
 		r.ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
 		require.Equal(t, http.StatusOK, res.Code)
 		require.Contains(t, res.Body.String(), `"name":"basic"`)
-		require.NotContains(t, res.Body.String(), `"name":"composite"`)
+		require.Contains(t, res.Body.String(), `"name":"composite"`)
 	}
 }
 
@@ -276,11 +309,6 @@ func TestGroupHandlerSimpleModeBlocksAdvancedOperations(t *testing.T) {
 	}{
 		{http.MethodPost, "/groups/1/duplicate", ""},
 		{http.MethodGet, "/groups/1/model-allowlist-candidates", ""},
-		{http.MethodGet, "/groups/1/composite-routes", ""},
-		{http.MethodPost, "/groups/1/composite-routes", `{"public_model":"x","target_platform":"openai"}`},
-		{http.MethodPost, "/groups/1/composite-routes/preview", `{"model":"x"}`},
-		{http.MethodPut, "/groups/1/composite-routes/2", `{"public_model":"x","target_platform":"openai"}`},
-		{http.MethodDelete, "/groups/1/composite-routes/2", ""},
 		{http.MethodGet, "/groups/1/rate-multipliers", ""},
 		{http.MethodPut, "/groups/1/rate-multipliers", `{"entries":[]}`},
 		{http.MethodDelete, "/groups/1/rate-multipliers", ""},

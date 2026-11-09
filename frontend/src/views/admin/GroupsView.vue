@@ -410,7 +410,7 @@
                 </span>
               </button>
               <button
-                v-if="!authStore.isSimpleMode && row.platform === 'composite'"
+                v-if="row.platform === 'composite'"
                 data-testid="group-composite-routes"
                 @click="handleCompositeRoutes(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-cyan-600 dark:hover:bg-dark-700 dark:hover:text-cyan-400"
@@ -514,14 +514,6 @@
             t("admin.groups.form.platform")
           }}</label>
           <Select
-            v-if="authStore.isSimpleMode"
-            v-model="createForm.platform"
-            :options="platformOptions"
-            data-tour="group-form-platform"
-            @change="handleSimpleCreatePlatformChange"
-          />
-          <Select
-            v-else
             v-model="createForm.platforms"
             :options="platformOptions"
             multiple
@@ -2158,14 +2150,6 @@
             t("admin.groups.form.platform")
           }}</label>
           <Select
-            v-if="authStore.isSimpleMode"
-            v-model="editForm.platform"
-            :options="platformOptions"
-            data-tour="group-form-platform"
-            @change="handleSimpleEditPlatformChange"
-          />
-          <Select
-            v-else
             v-model="editForm.platforms"
             :options="platformOptions"
             multiple
@@ -4641,17 +4625,6 @@ const exclusiveOptions = computed(() => [
 const platformOptions = computed(() => [...CONCRETE_PLATFORM_OPTIONS]);
 const editAllowsAllPlatforms = ref(false);
 
-const handleSimpleCreatePlatformChange = () => {
-  createForm.platforms = [createForm.platform as AccountPlatform];
-  createForm.copy_accounts_from_group_ids = [];
-};
-
-const handleSimpleEditPlatformChange = () => {
-  editForm.platforms = [editForm.platform as AccountPlatform];
-  editAllowsAllPlatforms.value = false;
-  editForm.copy_accounts_from_group_ids = [];
-};
-
 const allPlatformValues = (): AccountPlatform[] =>
   CONCRETE_PLATFORM_OPTIONS.map((option) => option.value);
 
@@ -6108,6 +6081,7 @@ const handleCreateGroup = async () => {
           description: createForm.description,
           i18n: createForm.i18n,
           platform: createForm.platform,
+          platforms: createForm.platforms,
         }
       : requestData;
     await adminAPI.groups.create(payload);
@@ -6477,6 +6451,8 @@ const handleUpdateGroup = async () => {
           name: editForm.name,
           description: editForm.description,
           i18n: editForm.i18n,
+          platform: editForm.platform,
+          platforms: payload.platforms,
         }
       : payload;
     await adminAPI.groups.update(editingGroup.value.id, requestData);

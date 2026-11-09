@@ -23,11 +23,11 @@ const mountSelector = (modelValue: number[] = []) => mount(GroupSelector, {
 describe('GroupSelector simple-mode binding policy', () => {
   beforeEach(() => { authState.isSimpleMode = false })
 
-  it('hides composite groups in simple mode and preserves basic groups', () => {
+  it('includes composite groups in simple mode', () => {
     authState.isSimpleMode = true
     const wrapper = mountSelector()
     expect(wrapper.text()).toContain('Basic')
-    expect(wrapper.text()).not.toContain('Composite')
+    expect(wrapper.text()).toContain('Composite')
   })
 
   it('keeps composite groups available in advanced mode', () => {
@@ -51,9 +51,9 @@ describe('GroupSelector simple-mode binding policy', () => {
     expect(wrapper.text()).toContain('Legacy')
   })
 
-  it('cleans hidden historical composite IDs while preserving visible selections', () => {
+  it('preserves existing composite selections in simple mode', () => {
     authState.isSimpleMode = true
     const wrapper = mountSelector([1, 2])
-    expect(wrapper.emitted('update:modelValue')).toEqual([[[1]]])
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 })

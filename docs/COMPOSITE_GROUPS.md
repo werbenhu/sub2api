@@ -10,7 +10,9 @@ restrict account bindings and route targets. Legacy multi-platform groups with
 an empty `platforms` list continue to allow every concrete platform.
 Editing other settings preserves that open list, including support for future
 platforms. Changing the platform selection explicitly restricts the group to
-the selected platforms. Simple mode only allows single-platform groups.
+the selected platforms. Simple mode also supports platform selection, account
+bindings, and composite model routes. It keeps its existing platform pool
+scheduling and skips billing checks.
 
 All groups use subscription quota. Administrators assign or renew subscriptions
 directly. Wallet deduction, online payment, redemption codes, and referral

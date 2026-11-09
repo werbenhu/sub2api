@@ -57,15 +57,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { Group, GroupPlatform } from '@/types'
-import { useAuthStore } from '@/stores'
 
 const { t } = useI18n()
-const authStore = useAuthStore()
 
 interface Props {
   modelValue: number[]
@@ -91,9 +89,7 @@ const isSearchable = computed(() => {
 
 // Filter groups by platform if specified
 const filteredGroups = computed(() => {
-  let result = authStore.isSimpleMode
-    ? props.groups.filter((g) => g.platform !== 'composite')
-    : props.groups
+  let result = props.groups
   const platform = props.platform
   if (platform) {
     // antigravity 账户启用混合调度后，可选择 anthropic/gemini 分组
@@ -116,17 +112,6 @@ const filteredGroups = computed(() => {
   }
   return result
 })
-
-watch(
-  () => [authStore.isSimpleMode, props.groups, props.modelValue] as const,
-  () => {
-    if (!authStore.isSimpleMode || props.groups.length === 0) return
-    const visibleIDs = new Set(props.groups.filter((group) => group.platform !== 'composite').map((group) => group.id))
-    const cleaned = props.modelValue.filter((id) => visibleIDs.has(id))
-    if (cleaned.length !== props.modelValue.length) emit('update:modelValue', cleaned)
-  },
-  { immediate: true, deep: true }
-)
 
 const handleChange = (groupId: number, checked: boolean) => {
   const newValue = checked

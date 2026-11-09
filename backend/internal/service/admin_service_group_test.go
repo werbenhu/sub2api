@@ -134,28 +134,21 @@ func TestAdminServiceSimpleModeValidatesRequestedGroupIDsDirectly(t *testing.T) 
 	groups[1002] = &Group{ID: 1002, Platform: PlatformComposite}
 	svc := &adminServiceImpl{cfg: &config.Config{RunMode: config.RunModeSimple}, groupRepo: &groupRepoStubForAdmin{getByIDByID: groups}}
 
-	require.Error(t, svc.ValidateAccountGroupBindings(context.Background(), []int64{1, 1002}))
+	require.NoError(t, svc.ValidateAccountGroupBindings(context.Background(), []int64{1, 1002}))
 	require.ErrorIs(t, svc.ValidateAccountGroupBindings(context.Background(), []int64{1, 2000}), ErrGroupNotFound)
 	require.NoError(t, svc.ValidateAccountGroupBindings(context.Background(), []int64{1, 1001}))
 }
 
-func TestAdminServiceSimpleModeRejectsDirectCompositeGroupAccess(t *testing.T) {
-	repo := &groupRepoStubForAdmin{getByID: &Group{ID: 9, Platform: PlatformComposite}}
-	svc := &adminServiceImpl{cfg: &config.Config{RunMode: config.RunModeSimple}, groupRepo: repo, emptyGroupDeleteRepo: repo}
-
-	_, err := svc.GetGroup(context.Background(), 9)
-	require.Error(t, err)
-	_, err = svc.UpdateGroup(context.Background(), 9, &UpdateGroupInput{})
-	require.Error(t, err)
-	require.Nil(t, repo.updated)
-	require.Error(t, svc.DeleteGroupIfEmpty(context.Background(), 9))
-}
-
-func TestAdminServiceSimpleModeRejectsAccountListCompositeFilter(t *testing.T) {
+func TestAdminServiceSimpleModeAllowsDirectCompositeGroupAccess(t *testing.T) {
 	repo := &groupRepoStubForAdmin{getByID: &Group{ID: 9, Platform: PlatformComposite}}
 	svc := &adminServiceImpl{cfg: &config.Config{RunMode: config.RunModeSimple}, groupRepo: repo}
-	_, _, err := svc.ListAccounts(context.Background(), 1, 20, "", "", "", "", 9, "", "", "")
-	require.Error(t, err)
+	group, err := svc.GetGroup(context.Background(), 9)
+	require.NoError(t, err)
+	require.Equal(t, PlatformComposite, group.Platform)
+	updated, err := svc.UpdateGroup(context.Background(), 9, &UpdateGroupInput{Name: "renamed"})
+	require.NoError(t, err)
+	require.Same(t, repo.updated, updated)
+	require.NoError(t, svc.ValidateAccountGroupBindings(context.Background(), []int64{9}))
 }
 
 func TestAdminServiceSimpleModeRejectsAdvancedGroupOperationsDirectly(t *testing.T) {
@@ -167,20 +160,6 @@ func TestAdminServiceSimpleModeRejectsAdvancedGroupOperationsDirectly(t *testing
 		{"duplicate", func() error { _, err := svc.DuplicateGroup(context.Background(), 1, "admin:1", "key"); return err }},
 		{"recover duplicate", func() error {
 			_, err := svc.RecoverDuplicateGroup(context.Background(), 1, "admin:1", "key")
-			return err
-		}},
-		{"list composite routes", func() error { _, err := svc.ListCompositeRoutes(context.Background(), 1); return err }},
-		{"create composite route", func() error {
-			_, err := svc.CreateCompositeRoute(context.Background(), 1, CompositeRouteInput{})
-			return err
-		}},
-		{"update composite route", func() error {
-			_, err := svc.UpdateCompositeRoute(context.Background(), 1, 2, CompositeRouteInput{})
-			return err
-		}},
-		{"delete composite route", func() error { return svc.DeleteCompositeRoute(context.Background(), 1, 2) }},
-		{"preview composite route", func() error {
-			_, err := svc.PreviewCompositeRoute(context.Background(), 1, CompositeRoutePreviewRequest{})
 			return err
 		}},
 		{"get multipliers", func() error { _, err := svc.GetGroupRateMultipliers(context.Background(), 1); return err }},
@@ -199,16 +178,36 @@ func TestAdminServiceSimpleModeRejectsAdvancedGroupOperationsDirectly(t *testing
 	}
 }
 
-func TestAdminServiceSimpleModeRejectsCompositeCreateAndConversionDirectly(t *testing.T) {
-	svc := &adminServiceImpl{cfg: &config.Config{RunMode: config.RunModeSimple}}
-	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Platform: PlatformComposite, RateMultiplier: 1})
-	require.Error(t, err)
-
+func TestAdminServiceSimpleModeAllowsCompositeCreateAndConversionDirectly(t *testing.T) {
 	repo := &groupRepoStubForAdmin{getByID: &Group{ID: 1, Platform: PlatformAnthropic}}
-	svc.groupRepo = repo
-	_, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Platform: PlatformComposite})
-	require.Error(t, err)
-	require.Nil(t, repo.updated)
+	svc := &adminServiceImpl{cfg: &config.Config{RunMode: config.RunModeSimple}, groupRepo: repo}
+	platforms := []string{PlatformAnthropic, PlatformOpenAI}
+	created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "multi", Platform: PlatformComposite, Platforms: platforms})
+	require.NoError(t, err)
+	require.Equal(t, platforms, created.Platforms)
+	require.Equal(t, 1.0, created.RateMultiplier)
+	updated, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Platform: PlatformComposite, Platforms: &platforms})
+	require.NoError(t, err)
+	require.Equal(t, platforms, updated.Platforms)
+	require.Equal(t, PlatformComposite, updated.Platform)
+}
+
+func TestAdminServiceSimpleModeCompositeRoutesRespectSelectedPlatforms(t *testing.T) {
+	routes := &compositeRouteRepoStubForAdmin{nextID: 1}
+	svc := &adminServiceImpl{
+		cfg:                &config.Config{RunMode: config.RunModeSimple},
+		groupRepo:          &groupRepoStubForAdmin{getByID: &Group{ID: 7, Platform: PlatformComposite, Platforms: []string{PlatformAnthropic, PlatformOpenAI}}},
+		compositeRouteRepo: routes,
+	}
+	route, err := svc.CreateCompositeRoute(context.Background(), 7, CompositeRouteInput{
+		PublicModel: "shared", TargetPlatform: PlatformOpenAI, Enabled: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, PlatformOpenAI, route.TargetPlatform)
+	_, err = svc.CreateCompositeRoute(context.Background(), 7, CompositeRouteInput{
+		PublicModel: "other", TargetPlatform: PlatformGemini, Enabled: true,
+	})
+	require.Equal(t, "COMPOSITE_ROUTE_PLATFORM_NOT_SELECTED", infraerrors.Reason(err))
 }
 
 func TestAdminServiceSimpleModeNormalizesAllUnsupportedCreateFieldsDirectly(t *testing.T) {
@@ -272,10 +271,10 @@ func TestAdminServiceSimpleModeNormalizesAllUnsupportedUpdateFieldsDirectly(t *t
 
 	updated, err := svc.UpdateGroup(context.Background(), 1, input)
 	require.NoError(t, err)
-	require.Equal(t, UpdateGroupInput{Name: "renamed", Description: &description}, *input)
+	require.Equal(t, UpdateGroupInput{Name: "renamed", Description: &description, Platform: PlatformOpenAI}, *input)
 	require.Equal(t, "renamed", updated.Name)
 	require.Equal(t, description, updated.Description)
-	require.Equal(t, PlatformAnthropic, updated.Platform)
+	require.Equal(t, PlatformOpenAI, updated.Platform)
 	require.Equal(t, StatusActive, updated.Status)
 	require.Equal(t, 3.0, updated.RateMultiplier)
 	require.Equal(t, 8, updated.RPMLimit)
