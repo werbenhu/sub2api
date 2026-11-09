@@ -410,6 +410,14 @@
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
               </button>
+              <button
+                data-testid="import-magpie"
+                @click="importToMagpie(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+              >
+                <Icon name="upload" size="sm" />
+                <span class="text-xs">{{ t('keys.importToMagpie') }}</span>
+              </button>
               <!-- Toggle Status Button -->
               <button
                 @click="toggleKeyStatus(row)"
@@ -1155,6 +1163,7 @@ import {
   buildCcSwitchImportDeeplink,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
+import { buildMagpieImportUrl } from '@/utils/magpieImport'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1892,6 +1901,31 @@ const resetRateLimitUsage = async () => {
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToResetRateLimit')
     appStore.showError(errorMsg)
+  }
+}
+
+const importToMagpie = (row: ApiKey) => {
+  const groupIds = [...new Set(row.group_ids?.length ? row.group_ids : row.group_id ? [row.group_id] : [])]
+  const boundGroups = groupIds.map(id =>
+    groups.value.find(group => group.id === id) || (row.group?.id === id ? row.group : undefined)
+  )
+  if (boundGroups.some(group => !group)) {
+    appStore.showError(t('keys.magpieGroupInfoUnavailable'))
+    return
+  }
+  const siteName = publicSettings.value?.site_name?.trim() || 'sub2api'
+  try {
+    const url = buildMagpieImportUrl({
+      baseUrl: publicSettings.value?.api_base_url || window.location.origin,
+      providerName: `${siteName} - ${row.name}`,
+      apiKey: row.key,
+      groups: boundGroups.filter((group): group is Group => !!group).concat(
+        groupIds.length === 0 && row.group ? [row.group] : []
+      )
+    })
+    window.open(url, '_blank', 'noopener,noreferrer')
+  } catch {
+    appStore.showError(t('keys.magpieImportFailed'))
   }
 }
 

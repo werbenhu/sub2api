@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
@@ -584,6 +584,66 @@ describe('user KeysView column settings', () => {
       const args = vi.mocked(keysAPI.create).mock.calls[0]
       expect(args[0]).toBe('Internal key')
       expect(args[8]).toEqual([1, 2])
+    })
+  })
+
+  describe('Magpie import', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('opens the official import page with all bound groups and the configured site URL', async () => {
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      getPublicSettings.mockResolvedValue({ api_base_url: 'https://relay.example.com/v1/', site_name: 'My Relay', hide_ccs_import_button: true })
+      getAvailableGroups.mockResolvedValue([
+        { id: 7, platform: 'anthropic' },
+        { id: 9, platform: 'composite', platforms: ['openai', 'gemini'] }
+      ])
+      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_id: 7, group_ids: [7, 9] }], total: 1 })
+      const wrapper = await mountView()
+      expect(wrapper.text()).not.toContain('keys.importToCcSwitch')
+      await wrapper.get('[data-testid="import-magpie"]').trigger('click')
+
+      expect(open).toHaveBeenCalledWith(expect.stringContaining('https://usemagpie.ai/import#'), '_blank', 'noopener,noreferrer')
+      const url = new URL(String(open.mock.calls[0]![0]))
+      const params = new URLSearchParams(url.hash.slice(1))
+      expect(url.search).toBe('')
+      expect(params.get('name')).toBe('My Relay - test-key')
+      expect(params.get('key')).toBe('sk-test-key')
+      expect(params.get('anthropic')).toBe('https://relay.example.com')
+      expect(params.get('responses')).toBe('https://relay.example.com/v1')
+      expect(params.get('gemini')).toBe('https://relay.example.com/v1beta')
+      expect(showError).not.toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    it('uses the hydrated primary group and current origin when settings are empty', async () => {
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_id: 7, group: { id: 7, platform: 'antigravity' } }], total: 1 })
+      const wrapper = await mountView()
+      await wrapper.get('[data-testid="import-magpie"]').trigger('click')
+      const params = new URLSearchParams(new URL(String(open.mock.calls[0]![0])).hash.slice(1))
+      expect(params.get('anthropic')).toBe(`${window.location.origin}/antigravity`)
+      expect(params.get('gemini')).toBe(`${window.location.origin}/antigravity/v1beta`)
+      wrapper.unmount()
+    })
+
+    it('asks to refresh rather than exporting incomplete group information', async () => {
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_ids: [7, 9] }], total: 1 })
+      const wrapper = await mountView()
+      await wrapper.get('[data-testid="import-magpie"]').trigger('click')
+      expect(open).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.magpieGroupInfoUnavailable')
+      wrapper.unmount()
+    })
+
+    it('reports invalid API URLs without opening an import page', async () => {
+      const open = vi.spyOn(window, 'open').mockReturnValue(null)
+      getPublicSettings.mockResolvedValue({ api_base_url: 'not-a-url' })
+      const wrapper = await mountView()
+      await wrapper.get('[data-testid="import-magpie"]').trigger('click')
+      expect(open).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.magpieImportFailed')
+      wrapper.unmount()
     })
   })
 
