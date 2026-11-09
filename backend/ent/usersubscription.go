@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // UserSubscription is the model entity for the UserSubscription schema.
@@ -25,6 +27,12 @@ type UserSubscription struct {
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	// DeletedAt holds the value of the "deleted_at" field.
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	// Budget holds the value of the "budget" field.
+	Budget *domain.SubscriptionBudget `json:"budget,omitempty"`
+	// BudgetWindowStart holds the value of the "budget_window_start" field.
+	BudgetWindowStart *time.Time `json:"budget_window_start,omitempty"`
+	// BudgetUsageUsd holds the value of the "budget_usage_usd" field.
+	BudgetUsageUsd float64 `json:"budget_usage_usd,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID int64 `json:"user_id,omitempty"`
 	// GroupID holds the value of the "group_id" field.
@@ -121,13 +129,15 @@ func (*UserSubscription) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case usersubscription.FieldDailyUsageUsd, usersubscription.FieldWeeklyUsageUsd, usersubscription.FieldMonthlyUsageUsd:
+		case usersubscription.FieldBudget:
+			values[i] = new([]byte)
+		case usersubscription.FieldBudgetUsageUsd, usersubscription.FieldDailyUsageUsd, usersubscription.FieldWeeklyUsageUsd, usersubscription.FieldMonthlyUsageUsd:
 			values[i] = new(sql.NullFloat64)
 		case usersubscription.FieldID, usersubscription.FieldUserID, usersubscription.FieldGroupID, usersubscription.FieldAssignedBy:
 			values[i] = new(sql.NullInt64)
 		case usersubscription.FieldStatus, usersubscription.FieldNotes:
 			values[i] = new(sql.NullString)
-		case usersubscription.FieldCreatedAt, usersubscription.FieldUpdatedAt, usersubscription.FieldDeletedAt, usersubscription.FieldStartsAt, usersubscription.FieldExpiresAt, usersubscription.FieldDailyWindowStart, usersubscription.FieldWeeklyWindowStart, usersubscription.FieldMonthlyWindowStart, usersubscription.FieldAssignedAt:
+		case usersubscription.FieldCreatedAt, usersubscription.FieldUpdatedAt, usersubscription.FieldDeletedAt, usersubscription.FieldBudgetWindowStart, usersubscription.FieldStartsAt, usersubscription.FieldExpiresAt, usersubscription.FieldDailyWindowStart, usersubscription.FieldWeeklyWindowStart, usersubscription.FieldMonthlyWindowStart, usersubscription.FieldAssignedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -168,6 +178,27 @@ func (_m *UserSubscription) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.DeletedAt = new(time.Time)
 				*_m.DeletedAt = value.Time
+			}
+		case usersubscription.FieldBudget:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field budget", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Budget); err != nil {
+					return fmt.Errorf("unmarshal field budget: %w", err)
+				}
+			}
+		case usersubscription.FieldBudgetWindowStart:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field budget_window_start", values[i])
+			} else if value.Valid {
+				_m.BudgetWindowStart = new(time.Time)
+				*_m.BudgetWindowStart = value.Time
+			}
+		case usersubscription.FieldBudgetUsageUsd:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field budget_usage_usd", values[i])
+			} else if value.Valid {
+				_m.BudgetUsageUsd = value.Float64
 			}
 		case usersubscription.FieldUserID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -324,6 +355,17 @@ func (_m *UserSubscription) String() string {
 		builder.WriteString("deleted_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("budget=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Budget))
+	builder.WriteString(", ")
+	if v := _m.BudgetWindowStart; v != nil {
+		builder.WriteString("budget_window_start=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("budget_usage_usd=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BudgetUsageUsd))
 	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))

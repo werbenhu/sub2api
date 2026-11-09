@@ -1285,6 +1285,16 @@ func SubscriptionGroupIDNotNil() predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldNotNull(FieldSubscriptionGroupID))
 }
 
+// SubscriptionBudgetIsNil applies the IsNil predicate on the "subscription_budget" field.
+func SubscriptionBudgetIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldSubscriptionBudget))
+}
+
+// SubscriptionBudgetNotNil applies the NotNil predicate on the "subscription_budget" field.
+func SubscriptionBudgetNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldSubscriptionBudget))
+}
+
 // SubscriptionDaysEQ applies the EQ predicate on the "subscription_days" field.
 func SubscriptionDaysEQ(v int) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldSubscriptionDays, v))

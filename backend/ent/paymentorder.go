@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // PaymentOrder is the model entity for the PaymentOrder schema.
@@ -55,6 +56,8 @@ type PaymentOrder struct {
 	PlanID *int64 `json:"plan_id,omitempty"`
 	// SubscriptionGroupID holds the value of the "subscription_group_id" field.
 	SubscriptionGroupID *int64 `json:"subscription_group_id,omitempty"`
+	// SubscriptionBudget holds the value of the "subscription_budget" field.
+	SubscriptionBudget *domain.SubscriptionBudget `json:"subscription_budget,omitempty"`
 	// SubscriptionDays holds the value of the "subscription_days" field.
 	SubscriptionDays *int `json:"subscription_days,omitempty"`
 	// ProviderInstanceID holds the value of the "provider_instance_id" field.
@@ -130,7 +133,7 @@ func (*PaymentOrder) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case paymentorder.FieldProviderSnapshot:
+		case paymentorder.FieldSubscriptionBudget, paymentorder.FieldProviderSnapshot:
 			values[i] = new([]byte)
 		case paymentorder.FieldForceRefund:
 			values[i] = new(sql.NullBool)
@@ -276,6 +279,14 @@ func (_m *PaymentOrder) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SubscriptionGroupID = new(int64)
 				*_m.SubscriptionGroupID = value.Int64
+			}
+		case paymentorder.FieldSubscriptionBudget:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field subscription_budget", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.SubscriptionBudget); err != nil {
+					return fmt.Errorf("unmarshal field subscription_budget: %w", err)
+				}
 			}
 		case paymentorder.FieldSubscriptionDays:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -530,6 +541,9 @@ func (_m *PaymentOrder) String() string {
 		builder.WriteString("subscription_group_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("subscription_budget=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SubscriptionBudget))
 	builder.WriteString(", ")
 	if v := _m.SubscriptionDays; v != nil {
 		builder.WriteString("subscription_days=")

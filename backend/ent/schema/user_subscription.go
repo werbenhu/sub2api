@@ -35,6 +35,9 @@ func (UserSubscription) Mixin() []ent.Mixin {
 
 func (UserSubscription) Fields() []ent.Field {
 	return []ent.Field{
+		field.JSON("budget", &domain.SubscriptionBudget{}).Optional(),
+		field.Time("budget_window_start").Optional().Nillable().SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Float("budget_usage_usd").SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).Default(0),
 		field.Int64("user_id"),
 		field.Int64("group_id"),
 

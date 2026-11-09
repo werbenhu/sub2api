@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -26,6 +28,7 @@ var MaxExpiresAt = time.Date(2099, 12, 31, 23, 59, 59, 0, time.UTC)
 const MaxValidityDays = 36500
 
 var (
+	ErrSubscriptionBudgetExceeded  = infraerrors.TooManyRequests("SUBSCRIPTION_BUDGET_EXHAUSTED", "subscription allowance is exhausted")
 	ErrSubscriptionNotFound        = infraerrors.NotFound("SUBSCRIPTION_NOT_FOUND", "subscription not found")
 	ErrSubscriptionExpired         = infraerrors.Forbidden("SUBSCRIPTION_EXPIRED", "subscription has expired")
 	ErrSubscriptionSuspended       = infraerrors.Forbidden("SUBSCRIPTION_SUSPENDED", "subscription is suspended")
@@ -218,6 +221,7 @@ func (s *SubscriptionService) invalidateSubscriptionCaches(userID, groupID int64
 
 // AssignSubscriptionInput 分配订阅输入
 type AssignSubscriptionInput struct {
+	Budget       *domain.SubscriptionBudget
 	UserID       int64
 	GroupID      int64
 	ValidityDays int
@@ -245,6 +249,9 @@ func (s *SubscriptionService) AssignOrExtendSubscription(ctx context.Context, in
 }
 
 func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, input *AssignSubscriptionInput, deferCacheInvalidation bool) (*UserSubscription, bool, error) {
+	if err := validateSubscriptionBudget(input.Budget); err != nil {
+		return nil, false, err
+	}
 	// 检查分组是否存在且为订阅类型
 	group, err := s.groupRepo.GetByID(ctx, input.GroupID)
 	if err != nil {
@@ -271,7 +278,7 @@ func (s *SubscriptionService) assignOrExtendSubscription(ctx context.Context, in
 
 	// 已有订阅，执行续期（在事务中完成所有更新）
 	if existingSub != nil {
-		if err := s.updateExistingSubscriptionTerm(ctx, existingSub.ID, validityDays, input.Notes, false); err != nil {
+		if err := s.updateExistingSubscriptionTerm(ctx, existingSub.ID, validityDays, input.Notes, false, input.Budget); err != nil {
 			return nil, false, err
 		}
 		if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
@@ -325,6 +332,7 @@ func (s *SubscriptionService) updateExistingSubscriptionTerm(
 	validityDays int,
 	notes string,
 	assignmentSemantics bool,
+	budgets ...*domain.SubscriptionBudget,
 ) error {
 	return s.withSubscriptionUpdateTx(ctx, func(txCtx context.Context) error {
 		existingSub, err := s.userSubRepo.GetByIDForUpdate(txCtx, subscriptionID)
@@ -357,12 +365,18 @@ func (s *SubscriptionService) updateExistingSubscriptionTerm(
 
 		if isExpired {
 			renewed := renewedSubscriptionTerm(existingSub, notes, now, newExpiresAt)
+			if len(budgets) > 0 {
+				renewed.Budget = cloneSubscriptionBudget(budgets[0])
+			}
 			if err := s.userSubRepo.Update(txCtx, renewed); err != nil {
 				return fmt.Errorf("renew expired subscription: %w", err)
 			}
 			return nil
 		}
 
+		if len(budgets) > 0 && !subscriptionBudgetsEqual(existingSub.Budget, budgets[0]) {
+			return ErrSubscriptionAssignConflict.WithMetadata(map[string]string{"conflict_reason": "budget_mismatch"})
+		}
 		// 更新过期时间
 		if err := s.userSubRepo.ExtendExpiry(txCtx, existingSub.ID, newExpiresAt); err != nil {
 			return fmt.Errorf("extend subscription: %w", err)
@@ -425,6 +439,8 @@ func renewedSubscriptionTerm(existingSub *UserSubscription, notes string, starts
 	renewed.DailyUsageUSD = 0
 	renewed.WeeklyUsageUSD = 0
 	renewed.MonthlyUsageUSD = 0
+	renewed.BudgetUsageUSD = 0
+	renewed.BudgetWindowStart = &startsAt
 	renewed.Notes = appendSubscriptionNotes(existingSub.Notes, notes)
 	return &renewed
 }
@@ -441,6 +457,9 @@ func appendSubscriptionNotes(existingNotes, newNotes string) string {
 
 // createSubscription 创建新订阅（内部方法）
 func (s *SubscriptionService) createSubscription(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, error) {
+	if err := validateSubscriptionBudget(input.Budget); err != nil {
+		return nil, err
+	}
 	validityDays := input.ValidityDays
 	if validityDays <= 0 {
 		validityDays = 30
@@ -456,15 +475,17 @@ func (s *SubscriptionService) createSubscription(ctx context.Context, input *Ass
 	}
 
 	sub := &UserSubscription{
-		UserID:     input.UserID,
-		GroupID:    input.GroupID,
-		StartsAt:   now,
-		ExpiresAt:  expiresAt,
-		Status:     SubscriptionStatusActive,
-		AssignedAt: now,
-		Notes:      input.Notes,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		UserID:            input.UserID,
+		GroupID:           input.GroupID,
+		Budget:            cloneSubscriptionBudget(input.Budget),
+		BudgetWindowStart: &now,
+		StartsAt:          now,
+		ExpiresAt:         expiresAt,
+		Status:            SubscriptionStatusActive,
+		AssignedAt:        now,
+		Notes:             input.Notes,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 	// 只有当 AssignedBy > 0 时才设置（0 表示系统分配，如兑换码）
 	if input.AssignedBy > 0 {
@@ -481,6 +502,7 @@ func (s *SubscriptionService) createSubscription(ctx context.Context, input *Ass
 
 // BulkAssignSubscriptionInput 批量分配订阅输入
 type BulkAssignSubscriptionInput struct {
+	Budget       *domain.SubscriptionBudget
 	UserIDs      []int64
 	GroupID      int64
 	ValidityDays int
@@ -511,6 +533,7 @@ func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input 
 		sub, reused, err := s.assignSubscriptionWithReuse(ctx, &AssignSubscriptionInput{
 			UserID:       userID,
 			GroupID:      input.GroupID,
+			Budget:       cloneSubscriptionBudget(input.Budget),
 			ValidityDays: input.ValidityDays,
 			AssignedBy:   input.AssignedBy,
 			Notes:        input.Notes,
@@ -536,6 +559,9 @@ func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input 
 }
 
 func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, bool, error) {
+	if err := validateSubscriptionBudget(input.Budget); err != nil {
+		return nil, false, err
+	}
 	// 检查分组是否存在且为订阅类型
 	group, err := s.groupRepo.GetByID(ctx, input.GroupID)
 	if err != nil {
@@ -559,7 +585,7 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 		if sub.Status == SubscriptionStatusExpired ||
 			(sub.Status != SubscriptionStatusSuspended && !sub.ExpiresAt.After(now)) {
 			validityDays := normalizeAssignValidityDays(input.ValidityDays)
-			if err := s.updateExistingSubscriptionTerm(ctx, sub.ID, validityDays, input.Notes, true); err != nil {
+			if err := s.updateExistingSubscriptionTerm(ctx, sub.ID, validityDays, input.Notes, true, input.Budget); err != nil {
 				return nil, false, err
 			}
 			if err := s.ensureSubscriptionGroupAccess(ctx, group, input.UserID); err != nil {
@@ -607,6 +633,9 @@ func detectAssignSemanticConflict(existing *UserSubscription, input *AssignSubsc
 		return "", false
 	}
 
+	if !subscriptionBudgetsEqual(existing.Budget, input.Budget) {
+		return "budget_mismatch", true
+	}
 	normalizedDays := normalizeAssignValidityDays(input.ValidityDays)
 	if !existing.StartsAt.IsZero() {
 		expectedExpiresAt := existing.StartsAt.AddDate(0, 0, normalizedDays)
@@ -933,6 +962,9 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 	if err != nil {
 		return nil, err
 	}
+	if sub.Budget != nil {
+		return s.resetBudgetUsage(ctx, subscriptionID)
+	}
 	now := s.now()
 	// 日窗口锚点取当天 0 点：手动重置只清空用量，不改变“每天 0 点刷新”的节奏。
 	// 周/月窗口保持锚定重置时刻（期限对齐滚动窗口语义）。
@@ -1028,6 +1060,12 @@ func (s *SubscriptionService) EnsureWindowMaintenance(ctx context.Context, sub *
 // CheckUsageLimits 检查使用限额（返回错误如果超限）
 // 用于中间件的快速预检查，additionalCost 通常为 0
 func (s *SubscriptionService) CheckUsageLimits(ctx context.Context, sub *UserSubscription, group *Group, additionalCost float64) error {
+	if sub.Budget != nil {
+		if !sub.CheckBudget(additionalCost, s.now()) {
+			return subscriptionBudgetExceeded(sub, s.now())
+		}
+		return nil
+	}
 	if !sub.CheckDailyLimit(group, additionalCost) {
 		return ErrDailyLimitExceeded
 	}
@@ -1056,6 +1094,12 @@ func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, grou
 		return false, ErrSubscriptionExpired
 	}
 
+	if sub.Budget != nil {
+		if !sub.CheckBudget(0, now) {
+			return false, subscriptionBudgetExceeded(sub, now)
+		}
+		return false, nil
+	}
 	// 2. 内存中修正过期窗口的用量，确保预检查不会误拒绝用户。
 	//    调用方随后同步推进 DB 窗口，并用回读快照重新校验。
 	if sub.canAutomaticallyResetDailyAt(now) {
@@ -1137,13 +1181,15 @@ func (s *SubscriptionService) RecordUsage(ctx context.Context, subscriptionID in
 
 // SubscriptionProgress 订阅进度
 type SubscriptionProgress struct {
-	ID            int64                `json:"id"`
-	GroupName     string               `json:"group_name"`
-	ExpiresAt     time.Time            `json:"expires_at"`
-	ExpiresInDays int                  `json:"expires_in_days"`
-	Daily         *UsageWindowProgress `json:"daily,omitempty"`
-	Weekly        *UsageWindowProgress `json:"weekly,omitempty"`
-	Monthly       *UsageWindowProgress `json:"monthly,omitempty"`
+	Budget        *domain.SubscriptionBudget `json:"budget,omitempty"`
+	Allowance     *UsageWindowProgress       `json:"allowance,omitempty"`
+	ID            int64                      `json:"id"`
+	GroupName     string                     `json:"group_name"`
+	ExpiresAt     time.Time                  `json:"expires_at"`
+	ExpiresInDays int                        `json:"expires_in_days"`
+	Daily         *UsageWindowProgress       `json:"daily,omitempty"`
+	Weekly        *UsageWindowProgress       `json:"weekly,omitempty"`
+	Monthly       *UsageWindowProgress       `json:"monthly,omitempty"`
 }
 
 // UsageWindowProgress 使用窗口进度
@@ -1182,6 +1228,18 @@ func (s *SubscriptionService) calculateProgress(sub *UserSubscription, group *Gr
 		GroupName:     group.Name,
 		ExpiresAt:     sub.ExpiresAt,
 		ExpiresInDays: sub.DaysRemaining(),
+	}
+
+	if sub.Budget != nil {
+		now := time.Now()
+		used := sub.EffectiveBudgetUsage(now)
+		resetsAt := sub.ExpiresAt
+		if next := sub.Budget.NextReset(sub.StartsAt, sub.ExpiresAt, now); next != nil {
+			resetsAt = *next
+		}
+		progress.Budget = cloneSubscriptionBudget(sub.Budget)
+		progress.Allowance = &UsageWindowProgress{LimitUSD: sub.Budget.AmountUSD, UsedUSD: used, RemainingUSD: math.Max(0, sub.Budget.AmountUSD-used), Percentage: math.Min(100, used/sub.Budget.AmountUSD*100), WindowStart: sub.Budget.WindowStart(sub.StartsAt, sub.ExpiresAt, now), ResetsAt: resetsAt, ResetsInSeconds: int64(math.Max(0, resetsAt.Sub(now).Seconds()))}
+		return progress
 	}
 
 	// 日进度

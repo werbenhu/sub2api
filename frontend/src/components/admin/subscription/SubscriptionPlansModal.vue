@@ -11,6 +11,7 @@
           <div>
             <p class="font-medium text-gray-900 dark:text-white">{{ plan.name }}</p>
             <p class="text-sm text-gray-500">{{ groupName(plan.group_id) }} · {{ plan.validity_days }} {{ t('admin.subscriptions.days') }}</p>
+            <p v-if="plan.budget" class="text-sm text-gray-500">${{ plan.budget.amount_usd }} · {{ t(`subscriptionBudget.${plan.budget.reset_period}`) }}</p>
           </div>
           <div class="flex gap-2">
             <button type="button" class="btn btn-secondary btn-sm" @click="startEdit(plan)">{{ t('common.edit') }}</button>
@@ -37,6 +38,7 @@
             <input v-model.number="form.sort_order" type="number" class="input" />
           </div>
         </div>
+        <SubscriptionBudgetEditor v-model="form.budget" />
         <textarea v-model.trim="form.description" class="input" rows="2" :placeholder="t('admin.groups.optionalDescription')" />
         <div class="flex justify-end gap-2">
           <button type="button" class="btn btn-secondary" @click="editing = false">{{ t('common.cancel') }}</button>
@@ -52,7 +54,9 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { SubscriptionPlan } from '@/api/admin/subscriptions'
-import type { Group } from '@/types'
+import type { Group, SubscriptionBudget } from '@/types'
+import SubscriptionBudgetEditor from './SubscriptionBudgetEditor.vue'
+import { defaultSubscriptionBudget } from '@/utils/subscriptionBudget'
 import { useAppStore } from '@/stores'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -66,7 +70,7 @@ const loading = ref(false)
 const saving = ref(false)
 const editing = ref(false)
 const editingID = ref<number | null>(null)
-const form = reactive({ name: '', description: '', group_id: null as number | null, validity_days: 30, sort_order: 0 })
+const form = reactive({ name: '', description: '', group_id: null as number | null, validity_days: 30, sort_order: 0, budget: null as SubscriptionBudget | null })
 const groupOptions = computed(() => props.groups.map(group => ({ value: group.id, label: group.name })))
 
 function groupName(id: number): string {
@@ -86,13 +90,13 @@ async function loadPlans() {
 
 function startCreate() {
   editingID.value = null
-  Object.assign(form, { name: '', description: '', group_id: props.groups[0]?.id ?? null, validity_days: 30, sort_order: plans.value.length })
+  Object.assign(form, { name: '', description: '', group_id: props.groups[0]?.id ?? null, validity_days: 30, sort_order: plans.value.length, budget: defaultSubscriptionBudget() })
   editing.value = true
 }
 
 function startEdit(plan: SubscriptionPlan) {
   editingID.value = plan.id
-  Object.assign(form, { name: plan.name, description: plan.description, group_id: plan.group_id, validity_days: plan.validity_days, sort_order: plan.sort_order })
+  Object.assign(form, { name: plan.name, description: plan.description, group_id: plan.group_id, validity_days: plan.validity_days, sort_order: plan.sort_order, budget: plan.budget ? { ...plan.budget } : null })
   editing.value = true
 }
 

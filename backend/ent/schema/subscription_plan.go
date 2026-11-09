@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"time"
 
 	"entgo.io/ent"
@@ -30,6 +31,7 @@ func (SubscriptionPlan) Annotations() []schema.Annotation {
 
 func (SubscriptionPlan) Fields() []ent.Field {
 	return []ent.Field{
+		field.JSON("budget", &domain.SubscriptionBudget{}).Optional(),
 		field.Int64("group_id"),
 		field.String("name").
 			MaxLen(100).

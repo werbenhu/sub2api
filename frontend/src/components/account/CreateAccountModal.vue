@@ -67,6 +67,7 @@
         <p class="input-hint">{{ t('admin.accounts.notesHint') }}</p>
       </div>
 
+      <AccountModelPricingEditor v-model="accountPricing" :platform="form.platform" />
       <!-- Platform Selection - Segmented Control Style -->
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
@@ -4120,6 +4121,9 @@
 </template>
 
 <script setup lang="ts">
+import AccountModelPricingEditor from './AccountModelPricingEditor.vue'
+import type { ChannelModelPricing } from '@/api/admin/channels'
+
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -4263,8 +4267,7 @@ const oauthStepTitle = computed(() => {
 const upstreamRequestIdHeader = ref('')
 const withUpstreamRequestIdHeader = <T extends Record<string, unknown> | undefined>(extra: T): T | Record<string, unknown> => {
   const name = upstreamRequestIdHeader.value.trim()
-  if (!name) return extra
-  return { ...(extra || {}), upstream_request_id_header: name }
+  return { ...(extra || {}), model_pricing: accountPricing.value, ...(name ? { upstream_request_id_header: name } : {}) }
 }
 
 const baseUrlHint = computed(() => {
@@ -5034,6 +5037,7 @@ const tempUnschedPresets = computed(() => [
   }
 ])
 
+const accountPricing = ref<ChannelModelPricing[]>([])
 const form = reactive({
   name: '',
   notes: '',
@@ -5625,6 +5629,7 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
 
 // Methods
 const resetForm = () => {
+  accountPricing.value = []
   step.value = 1
   form.name = ''
   form.notes = ''

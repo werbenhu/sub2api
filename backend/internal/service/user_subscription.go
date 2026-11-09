@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -9,9 +10,12 @@ import (
 const subscriptionDayDuration = 24 * time.Hour
 
 type UserSubscription struct {
-	ID      int64
-	UserID  int64
-	GroupID int64
+	Budget            *domain.SubscriptionBudget
+	BudgetUsageUSD    float64
+	BudgetWindowStart *time.Time
+	ID                int64
+	UserID            int64
+	GroupID           int64
 
 	StartsAt  time.Time
 	ExpiresAt time.Time
@@ -230,4 +234,22 @@ func (s *UserSubscription) CheckAllLimits(group *Group, additionalCost float64) 
 	weekly = s.CheckWeeklyLimit(group, additionalCost)
 	monthly = s.CheckMonthlyLimit(group, additionalCost)
 	return
+}
+
+func (s *UserSubscription) EffectiveBudgetUsage(now time.Time) float64 {
+	if s.Budget == nil {
+		return 0
+	}
+	window := s.Budget.WindowStart(s.StartsAt, s.ExpiresAt, now)
+	if s.BudgetWindowStart == nil || s.BudgetWindowStart.Before(window) {
+		return 0
+	}
+	return s.BudgetUsageUSD
+}
+func (s *UserSubscription) CheckBudget(additional float64, now time.Time) bool {
+	if s.Budget == nil {
+		return true
+	}
+	used := s.EffectiveBudgetUsage(now)
+	return used < s.Budget.AmountUSD && used+additional <= s.Budget.AmountUSD
 }

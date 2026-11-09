@@ -166,6 +166,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	apiKey := input.APIKey
 	user := input.User
 	account := input.Account
+	ctx = withAccountModelPricing(ctx, account)
 	subscription := input.Subscription
 	billingAccount, err := resolveCredentialAccount(ctx, s.accountRepo, account)
 	if err != nil {
@@ -762,7 +763,7 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 ) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
-	if resolved != nil && resolved.Source == PricingSourceGroup &&
+	if resolved != nil && (resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceAccount) &&
 		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
 		gid := apiKey.Group.ID
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
@@ -824,7 +825,7 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	resolution := NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
 	durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
 	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
-	if resolved != nil && resolved.Source == PricingSourceGroup && resolved.Mode == BillingModeVideo {
+	if resolved != nil && (resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceAccount) && resolved.Mode == BillingModeVideo {
 		gid := apiKey.Group.ID
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
 			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
@@ -969,7 +970,7 @@ func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, 
 	}
 	gid := apiKey.Group.ID
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
-	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
+	if resolved.Source == PricingSourceAccount || resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
 		return resolved
 	}
 	return nil

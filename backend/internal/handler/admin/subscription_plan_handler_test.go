@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,7 +40,7 @@ type subscriptionPlanGroupRepoStub struct {
 }
 
 func (subscriptionPlanGroupRepoStub) GetByID(context.Context, int64) (*service.Group, error) {
-	return &service.Group{ID: 91, Status: service.StatusActive}, nil
+	return &service.Group{ID: 91, Status: service.StatusActive, SubscriptionType: service.SubscriptionTypeSubscription}, nil
 }
 
 type subscriptionPlanUserRepoStub struct {
@@ -65,6 +66,7 @@ func TestAssignPlanUsesServerSidePlanConfiguration(t *testing.T) {
 	subscriptionService := service.NewSubscriptionService(subscriptionPlanGroupRepoStub{}, repo, nil, nil, nil)
 	handler := NewSubscriptionHandler(subscriptionService, subscriptionPlanServiceStub{plan: &dbent.SubscriptionPlan{
 		ID: 9, GroupID: 91, ValidityDays: 90,
+		Budget: &domain.SubscriptionBudget{AmountUSD: 20, ResetPeriod: "hours", ResetHours: 6},
 	}})
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -77,5 +79,8 @@ func TestAssignPlanUsesServerSidePlanConfiguration(t *testing.T) {
 	require.NotNil(t, repo.created)
 	require.Equal(t, int64(42), repo.created.UserID)
 	require.Equal(t, int64(91), repo.created.GroupID)
+	require.NotNil(t, repo.created.Budget)
+	require.Equal(t, 20.0, repo.created.Budget.AmountUSD)
+	require.Equal(t, 6, repo.created.Budget.ResetHours)
 	require.WithinDuration(t, time.Now().AddDate(0, 0, 90), repo.created.ExpiresAt, 5*time.Second)
 }

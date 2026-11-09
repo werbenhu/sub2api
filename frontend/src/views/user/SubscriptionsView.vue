@@ -93,8 +93,9 @@
               }}</span>
             </div>
 
+            <SubscriptionBudgetUsage :subscription="subscription" />
             <!-- Daily Usage -->
-            <div v-if="subscription.group?.daily_limit_usd" class="space-y-2">
+            <div v-if="!subscription.budget && subscription.group?.daily_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('userSubscriptions.daily') }}
@@ -131,7 +132,7 @@
             </div>
 
             <!-- Weekly Usage -->
-            <div v-if="subscription.group?.weekly_limit_usd" class="space-y-2">
+            <div v-if="!subscription.budget && subscription.group?.weekly_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('userSubscriptions.weekly') }}
@@ -172,7 +173,7 @@
             </div>
 
             <!-- Monthly Usage -->
-            <div v-if="subscription.group?.monthly_limit_usd" class="space-y-2">
+            <div v-if="!subscription.budget && subscription.group?.monthly_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('userSubscriptions.monthly') }}
@@ -215,7 +216,7 @@
             <!-- No limits configured - Unlimited badge -->
             <div
               v-if="
-                !subscription.group?.daily_limit_usd &&
+                !subscription.budget && !subscription.group?.daily_limit_usd &&
                 !subscription.group?.weekly_limit_usd &&
                 !subscription.group?.monthly_limit_usd
               "
@@ -241,6 +242,7 @@
 </template>
 
 <script setup lang="ts">
+import SubscriptionBudgetUsage from '@/components/subscription/SubscriptionBudgetUsage.vue'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

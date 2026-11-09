@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -48,18 +49,20 @@ func ProvideSubscriptionHandler(subscriptionService *service.SubscriptionService
 
 // AssignSubscriptionRequest represents assign subscription request
 type AssignSubscriptionRequest struct {
-	UserID       int64  `json:"user_id" binding:"required"`
-	GroupID      int64  `json:"group_id" binding:"required"`
-	ValidityDays int    `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
-	Notes        string `json:"notes"`
+	Budget       *domain.SubscriptionBudget `json:"budget"`
+	UserID       int64                      `json:"user_id" binding:"required"`
+	GroupID      int64                      `json:"group_id" binding:"required"`
+	ValidityDays int                        `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
+	Notes        string                     `json:"notes"`
 }
 
 // BulkAssignSubscriptionRequest represents bulk assign subscription request
 type BulkAssignSubscriptionRequest struct {
-	UserIDs      []int64 `json:"user_ids" binding:"required,min=1,max=100,dive,gt=0"`
-	GroupID      int64   `json:"group_id" binding:"required"`
-	ValidityDays int     `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
-	Notes        string  `json:"notes"`
+	Budget       *domain.SubscriptionBudget `json:"budget"`
+	UserIDs      []int64                    `json:"user_ids" binding:"required,min=1,max=100,dive,gt=0"`
+	GroupID      int64                      `json:"group_id" binding:"required"`
+	ValidityDays int                        `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
+	Notes        string                     `json:"notes"`
 }
 
 // AdjustSubscriptionRequest represents adjust subscription request (extend or shorten)
@@ -156,6 +159,7 @@ func (h *SubscriptionHandler) Assign(c *gin.Context) {
 		UserID:       req.UserID,
 		GroupID:      req.GroupID,
 		ValidityDays: req.ValidityDays,
+		Budget:       req.Budget,
 		AssignedBy:   adminID,
 		Notes:        req.Notes,
 	})
@@ -183,6 +187,7 @@ func (h *SubscriptionHandler) BulkAssign(c *gin.Context) {
 		UserIDs:      req.UserIDs,
 		GroupID:      req.GroupID,
 		ValidityDays: req.ValidityDays,
+		Budget:       req.Budget,
 		AssignedBy:   adminID,
 		Notes:        req.Notes,
 	})
@@ -364,4 +369,25 @@ func getAdminIDFromContext(c *gin.Context) int64 {
 		return 0
 	}
 	return subject.UserID
+}
+
+func (h *SubscriptionHandler) UpdateBudget(c *gin.Context) {
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var req struct {
+		Budget     *domain.SubscriptionBudget `json:"budget" binding:"required"`
+		ResetUsage bool                       `json:"reset_usage"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	sub, err := h.subscriptionService.UpdateBudget(c.Request.Context(), id, req.Budget, req.ResetUsage)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.UserSubscriptionFromServiceAdmin(sub))
 }

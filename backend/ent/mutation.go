@@ -30502,6 +30502,7 @@ type PaymentOrderMutation struct {
 	addplan_id               *int64
 	subscription_group_id    *int64
 	addsubscription_group_id *int64
+	subscription_budget      **domain.SubscriptionBudget
 	subscription_days        *int
 	addsubscription_days     *int
 	provider_instance_id     *string
@@ -31478,6 +31479,55 @@ func (m *PaymentOrderMutation) ResetSubscriptionGroupID() {
 	m.subscription_group_id = nil
 	m.addsubscription_group_id = nil
 	delete(m.clearedFields, paymentorder.FieldSubscriptionGroupID)
+}
+
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (m *PaymentOrderMutation) SetSubscriptionBudget(db *domain.SubscriptionBudget) {
+	m.subscription_budget = &db
+}
+
+// SubscriptionBudget returns the value of the "subscription_budget" field in the mutation.
+func (m *PaymentOrderMutation) SubscriptionBudget() (r *domain.SubscriptionBudget, exists bool) {
+	v := m.subscription_budget
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSubscriptionBudget returns the old "subscription_budget" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldSubscriptionBudget(ctx context.Context) (v *domain.SubscriptionBudget, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSubscriptionBudget is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSubscriptionBudget requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSubscriptionBudget: %w", err)
+	}
+	return oldValue.SubscriptionBudget, nil
+}
+
+// ClearSubscriptionBudget clears the value of the "subscription_budget" field.
+func (m *PaymentOrderMutation) ClearSubscriptionBudget() {
+	m.subscription_budget = nil
+	m.clearedFields[paymentorder.FieldSubscriptionBudget] = struct{}{}
+}
+
+// SubscriptionBudgetCleared returns if the "subscription_budget" field was cleared in this mutation.
+func (m *PaymentOrderMutation) SubscriptionBudgetCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldSubscriptionBudget]
+	return ok
+}
+
+// ResetSubscriptionBudget resets all changes to the "subscription_budget" field.
+func (m *PaymentOrderMutation) ResetSubscriptionBudget() {
+	m.subscription_budget = nil
+	delete(m.clearedFields, paymentorder.FieldSubscriptionBudget)
 }
 
 // SetSubscriptionDays sets the "subscription_days" field.
@@ -32556,7 +32606,7 @@ func (m *PaymentOrderMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PaymentOrderMutation) Fields() []string {
-	fields := make([]string, 0, 40)
+	fields := make([]string, 0, 41)
 	if m.user != nil {
 		fields = append(fields, paymentorder.FieldUserID)
 	}
@@ -32610,6 +32660,9 @@ func (m *PaymentOrderMutation) Fields() []string {
 	}
 	if m.subscription_group_id != nil {
 		fields = append(fields, paymentorder.FieldSubscriptionGroupID)
+	}
+	if m.subscription_budget != nil {
+		fields = append(fields, paymentorder.FieldSubscriptionBudget)
 	}
 	if m.subscription_days != nil {
 		fields = append(fields, paymentorder.FieldSubscriptionDays)
@@ -32721,6 +32774,8 @@ func (m *PaymentOrderMutation) Field(name string) (ent.Value, bool) {
 		return m.PlanID()
 	case paymentorder.FieldSubscriptionGroupID:
 		return m.SubscriptionGroupID()
+	case paymentorder.FieldSubscriptionBudget:
+		return m.SubscriptionBudget()
 	case paymentorder.FieldSubscriptionDays:
 		return m.SubscriptionDays()
 	case paymentorder.FieldProviderInstanceID:
@@ -32810,6 +32865,8 @@ func (m *PaymentOrderMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldPlanID(ctx)
 	case paymentorder.FieldSubscriptionGroupID:
 		return m.OldSubscriptionGroupID(ctx)
+	case paymentorder.FieldSubscriptionBudget:
+		return m.OldSubscriptionBudget(ctx)
 	case paymentorder.FieldSubscriptionDays:
 		return m.OldSubscriptionDays(ctx)
 	case paymentorder.FieldProviderInstanceID:
@@ -32988,6 +33045,13 @@ func (m *PaymentOrderMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSubscriptionGroupID(v)
+		return nil
+	case paymentorder.FieldSubscriptionBudget:
+		v, ok := value.(*domain.SubscriptionBudget)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSubscriptionBudget(v)
 		return nil
 	case paymentorder.FieldSubscriptionDays:
 		v, ok := value.(int)
@@ -33290,6 +33354,9 @@ func (m *PaymentOrderMutation) ClearedFields() []string {
 	if m.FieldCleared(paymentorder.FieldSubscriptionGroupID) {
 		fields = append(fields, paymentorder.FieldSubscriptionGroupID)
 	}
+	if m.FieldCleared(paymentorder.FieldSubscriptionBudget) {
+		fields = append(fields, paymentorder.FieldSubscriptionBudget)
+	}
 	if m.FieldCleared(paymentorder.FieldSubscriptionDays) {
 		fields = append(fields, paymentorder.FieldSubscriptionDays)
 	}
@@ -33363,6 +33430,9 @@ func (m *PaymentOrderMutation) ClearField(name string) error {
 		return nil
 	case paymentorder.FieldSubscriptionGroupID:
 		m.ClearSubscriptionGroupID()
+		return nil
+	case paymentorder.FieldSubscriptionBudget:
+		m.ClearSubscriptionBudget()
 		return nil
 	case paymentorder.FieldSubscriptionDays:
 		m.ClearSubscriptionDays()
@@ -33467,6 +33537,9 @@ func (m *PaymentOrderMutation) ResetField(name string) error {
 		return nil
 	case paymentorder.FieldSubscriptionGroupID:
 		m.ResetSubscriptionGroupID()
+		return nil
+	case paymentorder.FieldSubscriptionBudget:
+		m.ResetSubscriptionBudget()
 		return nil
 	case paymentorder.FieldSubscriptionDays:
 		m.ResetSubscriptionDays()
@@ -41316,6 +41389,7 @@ type SubscriptionPlanMutation struct {
 	op                Op
 	typ               string
 	id                *int64
+	budget            **domain.SubscriptionBudget
 	group_id          *int64
 	addgroup_id       *int64
 	name              *string
@@ -41437,6 +41511,55 @@ func (m *SubscriptionPlanMutation) IDs(ctx context.Context) ([]int64, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetBudget sets the "budget" field.
+func (m *SubscriptionPlanMutation) SetBudget(db *domain.SubscriptionBudget) {
+	m.budget = &db
+}
+
+// Budget returns the value of the "budget" field in the mutation.
+func (m *SubscriptionPlanMutation) Budget() (r *domain.SubscriptionBudget, exists bool) {
+	v := m.budget
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBudget returns the old "budget" field's value of the SubscriptionPlan entity.
+// If the SubscriptionPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SubscriptionPlanMutation) OldBudget(ctx context.Context) (v *domain.SubscriptionBudget, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBudget is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBudget requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBudget: %w", err)
+	}
+	return oldValue.Budget, nil
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (m *SubscriptionPlanMutation) ClearBudget() {
+	m.budget = nil
+	m.clearedFields[subscriptionplan.FieldBudget] = struct{}{}
+}
+
+// BudgetCleared returns if the "budget" field was cleared in this mutation.
+func (m *SubscriptionPlanMutation) BudgetCleared() bool {
+	_, ok := m.clearedFields[subscriptionplan.FieldBudget]
+	return ok
+}
+
+// ResetBudget resets all changes to the "budget" field.
+func (m *SubscriptionPlanMutation) ResetBudget() {
+	m.budget = nil
+	delete(m.clearedFields, subscriptionplan.FieldBudget)
 }
 
 // SetGroupID sets the "group_id" field.
@@ -42091,7 +42214,10 @@ func (m *SubscriptionPlanMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SubscriptionPlanMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
+	if m.budget != nil {
+		fields = append(fields, subscriptionplan.FieldBudget)
+	}
 	if m.group_id != nil {
 		fields = append(fields, subscriptionplan.FieldGroupID)
 	}
@@ -42142,6 +42268,8 @@ func (m *SubscriptionPlanMutation) Fields() []string {
 // schema.
 func (m *SubscriptionPlanMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case subscriptionplan.FieldBudget:
+		return m.Budget()
 	case subscriptionplan.FieldGroupID:
 		return m.GroupID()
 	case subscriptionplan.FieldName:
@@ -42179,6 +42307,8 @@ func (m *SubscriptionPlanMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *SubscriptionPlanMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case subscriptionplan.FieldBudget:
+		return m.OldBudget(ctx)
 	case subscriptionplan.FieldGroupID:
 		return m.OldGroupID(ctx)
 	case subscriptionplan.FieldName:
@@ -42216,6 +42346,13 @@ func (m *SubscriptionPlanMutation) OldField(ctx context.Context, name string) (e
 // type.
 func (m *SubscriptionPlanMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case subscriptionplan.FieldBudget:
+		v, ok := value.(*domain.SubscriptionBudget)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBudget(v)
+		return nil
 	case subscriptionplan.FieldGroupID:
 		v, ok := value.(int64)
 		if !ok {
@@ -42407,6 +42544,9 @@ func (m *SubscriptionPlanMutation) AddField(name string, value ent.Value) error 
 // mutation.
 func (m *SubscriptionPlanMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(subscriptionplan.FieldBudget) {
+		fields = append(fields, subscriptionplan.FieldBudget)
+	}
 	if m.FieldCleared(subscriptionplan.FieldOriginalPrice) {
 		fields = append(fields, subscriptionplan.FieldOriginalPrice)
 	}
@@ -42424,6 +42564,9 @@ func (m *SubscriptionPlanMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *SubscriptionPlanMutation) ClearField(name string) error {
 	switch name {
+	case subscriptionplan.FieldBudget:
+		m.ClearBudget()
+		return nil
 	case subscriptionplan.FieldOriginalPrice:
 		m.ClearOriginalPrice()
 		return nil
@@ -42435,6 +42578,9 @@ func (m *SubscriptionPlanMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *SubscriptionPlanMutation) ResetField(name string) error {
 	switch name {
+	case subscriptionplan.FieldBudget:
+		m.ResetBudget()
+		return nil
 	case subscriptionplan.FieldGroupID:
 		m.ResetGroupID()
 		return nil
@@ -55833,6 +55979,10 @@ type UserSubscriptionMutation struct {
 	created_at              *time.Time
 	updated_at              *time.Time
 	deleted_at              *time.Time
+	budget                  **domain.SubscriptionBudget
+	budget_window_start     *time.Time
+	budget_usage_usd        *float64
+	addbudget_usage_usd     *float64
 	starts_at               *time.Time
 	expires_at              *time.Time
 	status                  *string
@@ -56079,6 +56229,160 @@ func (m *UserSubscriptionMutation) DeletedAtCleared() bool {
 func (m *UserSubscriptionMutation) ResetDeletedAt() {
 	m.deleted_at = nil
 	delete(m.clearedFields, usersubscription.FieldDeletedAt)
+}
+
+// SetBudget sets the "budget" field.
+func (m *UserSubscriptionMutation) SetBudget(db *domain.SubscriptionBudget) {
+	m.budget = &db
+}
+
+// Budget returns the value of the "budget" field in the mutation.
+func (m *UserSubscriptionMutation) Budget() (r *domain.SubscriptionBudget, exists bool) {
+	v := m.budget
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBudget returns the old "budget" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldBudget(ctx context.Context) (v *domain.SubscriptionBudget, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBudget is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBudget requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBudget: %w", err)
+	}
+	return oldValue.Budget, nil
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (m *UserSubscriptionMutation) ClearBudget() {
+	m.budget = nil
+	m.clearedFields[usersubscription.FieldBudget] = struct{}{}
+}
+
+// BudgetCleared returns if the "budget" field was cleared in this mutation.
+func (m *UserSubscriptionMutation) BudgetCleared() bool {
+	_, ok := m.clearedFields[usersubscription.FieldBudget]
+	return ok
+}
+
+// ResetBudget resets all changes to the "budget" field.
+func (m *UserSubscriptionMutation) ResetBudget() {
+	m.budget = nil
+	delete(m.clearedFields, usersubscription.FieldBudget)
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (m *UserSubscriptionMutation) SetBudgetWindowStart(t time.Time) {
+	m.budget_window_start = &t
+}
+
+// BudgetWindowStart returns the value of the "budget_window_start" field in the mutation.
+func (m *UserSubscriptionMutation) BudgetWindowStart() (r time.Time, exists bool) {
+	v := m.budget_window_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBudgetWindowStart returns the old "budget_window_start" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldBudgetWindowStart(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBudgetWindowStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBudgetWindowStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBudgetWindowStart: %w", err)
+	}
+	return oldValue.BudgetWindowStart, nil
+}
+
+// ClearBudgetWindowStart clears the value of the "budget_window_start" field.
+func (m *UserSubscriptionMutation) ClearBudgetWindowStart() {
+	m.budget_window_start = nil
+	m.clearedFields[usersubscription.FieldBudgetWindowStart] = struct{}{}
+}
+
+// BudgetWindowStartCleared returns if the "budget_window_start" field was cleared in this mutation.
+func (m *UserSubscriptionMutation) BudgetWindowStartCleared() bool {
+	_, ok := m.clearedFields[usersubscription.FieldBudgetWindowStart]
+	return ok
+}
+
+// ResetBudgetWindowStart resets all changes to the "budget_window_start" field.
+func (m *UserSubscriptionMutation) ResetBudgetWindowStart() {
+	m.budget_window_start = nil
+	delete(m.clearedFields, usersubscription.FieldBudgetWindowStart)
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (m *UserSubscriptionMutation) SetBudgetUsageUsd(f float64) {
+	m.budget_usage_usd = &f
+	m.addbudget_usage_usd = nil
+}
+
+// BudgetUsageUsd returns the value of the "budget_usage_usd" field in the mutation.
+func (m *UserSubscriptionMutation) BudgetUsageUsd() (r float64, exists bool) {
+	v := m.budget_usage_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBudgetUsageUsd returns the old "budget_usage_usd" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldBudgetUsageUsd(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBudgetUsageUsd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBudgetUsageUsd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBudgetUsageUsd: %w", err)
+	}
+	return oldValue.BudgetUsageUsd, nil
+}
+
+// AddBudgetUsageUsd adds f to the "budget_usage_usd" field.
+func (m *UserSubscriptionMutation) AddBudgetUsageUsd(f float64) {
+	if m.addbudget_usage_usd != nil {
+		*m.addbudget_usage_usd += f
+	} else {
+		m.addbudget_usage_usd = &f
+	}
+}
+
+// AddedBudgetUsageUsd returns the value that was added to the "budget_usage_usd" field in this mutation.
+func (m *UserSubscriptionMutation) AddedBudgetUsageUsd() (r float64, exists bool) {
+	v := m.addbudget_usage_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBudgetUsageUsd resets all changes to the "budget_usage_usd" field.
+func (m *UserSubscriptionMutation) ResetBudgetUsageUsd() {
+	m.budget_usage_usd = nil
+	m.addbudget_usage_usd = nil
 }
 
 // SetUserID sets the "user_id" field.
@@ -56892,7 +57196,7 @@ func (m *UserSubscriptionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserSubscriptionMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 20)
 	if m.created_at != nil {
 		fields = append(fields, usersubscription.FieldCreatedAt)
 	}
@@ -56901,6 +57205,15 @@ func (m *UserSubscriptionMutation) Fields() []string {
 	}
 	if m.deleted_at != nil {
 		fields = append(fields, usersubscription.FieldDeletedAt)
+	}
+	if m.budget != nil {
+		fields = append(fields, usersubscription.FieldBudget)
+	}
+	if m.budget_window_start != nil {
+		fields = append(fields, usersubscription.FieldBudgetWindowStart)
+	}
+	if m.budget_usage_usd != nil {
+		fields = append(fields, usersubscription.FieldBudgetUsageUsd)
 	}
 	if m.user != nil {
 		fields = append(fields, usersubscription.FieldUserID)
@@ -56958,6 +57271,12 @@ func (m *UserSubscriptionMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case usersubscription.FieldDeletedAt:
 		return m.DeletedAt()
+	case usersubscription.FieldBudget:
+		return m.Budget()
+	case usersubscription.FieldBudgetWindowStart:
+		return m.BudgetWindowStart()
+	case usersubscription.FieldBudgetUsageUsd:
+		return m.BudgetUsageUsd()
 	case usersubscription.FieldUserID:
 		return m.UserID()
 	case usersubscription.FieldGroupID:
@@ -57001,6 +57320,12 @@ func (m *UserSubscriptionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldUpdatedAt(ctx)
 	case usersubscription.FieldDeletedAt:
 		return m.OldDeletedAt(ctx)
+	case usersubscription.FieldBudget:
+		return m.OldBudget(ctx)
+	case usersubscription.FieldBudgetWindowStart:
+		return m.OldBudgetWindowStart(ctx)
+	case usersubscription.FieldBudgetUsageUsd:
+		return m.OldBudgetUsageUsd(ctx)
 	case usersubscription.FieldUserID:
 		return m.OldUserID(ctx)
 	case usersubscription.FieldGroupID:
@@ -57058,6 +57383,27 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDeletedAt(v)
+		return nil
+	case usersubscription.FieldBudget:
+		v, ok := value.(*domain.SubscriptionBudget)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBudget(v)
+		return nil
+	case usersubscription.FieldBudgetWindowStart:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBudgetWindowStart(v)
+		return nil
+	case usersubscription.FieldBudgetUsageUsd:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBudgetUsageUsd(v)
 		return nil
 	case usersubscription.FieldUserID:
 		v, ok := value.(int64)
@@ -57165,6 +57511,9 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 // this mutation.
 func (m *UserSubscriptionMutation) AddedFields() []string {
 	var fields []string
+	if m.addbudget_usage_usd != nil {
+		fields = append(fields, usersubscription.FieldBudgetUsageUsd)
+	}
 	if m.adddaily_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldDailyUsageUsd)
 	}
@@ -57182,6 +57531,8 @@ func (m *UserSubscriptionMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *UserSubscriptionMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case usersubscription.FieldBudgetUsageUsd:
+		return m.AddedBudgetUsageUsd()
 	case usersubscription.FieldDailyUsageUsd:
 		return m.AddedDailyUsageUsd()
 	case usersubscription.FieldWeeklyUsageUsd:
@@ -57197,6 +57548,13 @@ func (m *UserSubscriptionMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *UserSubscriptionMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case usersubscription.FieldBudgetUsageUsd:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBudgetUsageUsd(v)
+		return nil
 	case usersubscription.FieldDailyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
@@ -57228,6 +57586,12 @@ func (m *UserSubscriptionMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(usersubscription.FieldDeletedAt) {
 		fields = append(fields, usersubscription.FieldDeletedAt)
+	}
+	if m.FieldCleared(usersubscription.FieldBudget) {
+		fields = append(fields, usersubscription.FieldBudget)
+	}
+	if m.FieldCleared(usersubscription.FieldBudgetWindowStart) {
+		fields = append(fields, usersubscription.FieldBudgetWindowStart)
 	}
 	if m.FieldCleared(usersubscription.FieldDailyWindowStart) {
 		fields = append(fields, usersubscription.FieldDailyWindowStart)
@@ -57261,6 +57625,12 @@ func (m *UserSubscriptionMutation) ClearField(name string) error {
 	case usersubscription.FieldDeletedAt:
 		m.ClearDeletedAt()
 		return nil
+	case usersubscription.FieldBudget:
+		m.ClearBudget()
+		return nil
+	case usersubscription.FieldBudgetWindowStart:
+		m.ClearBudgetWindowStart()
+		return nil
 	case usersubscription.FieldDailyWindowStart:
 		m.ClearDailyWindowStart()
 		return nil
@@ -57292,6 +57662,15 @@ func (m *UserSubscriptionMutation) ResetField(name string) error {
 		return nil
 	case usersubscription.FieldDeletedAt:
 		m.ResetDeletedAt()
+		return nil
+	case usersubscription.FieldBudget:
+		m.ResetBudget()
+		return nil
+	case usersubscription.FieldBudgetWindowStart:
+		m.ResetBudgetWindowStart()
+		return nil
+	case usersubscription.FieldBudgetUsageUsd:
+		m.ResetBudgetUsageUsd()
 		return nil
 	case usersubscription.FieldUserID:
 		m.ResetUserID()

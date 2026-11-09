@@ -143,6 +143,11 @@ docs/*
 !docs/ASYNC_IMAGE_TASKS.md
 !docs/BATCH_IMAGE_MVP.md
 !docs/COMPOSITE_GROUPS.md
+!docs/SUBSCRIPTION_BUDGETS.md
+!docs/patches/
+docs/patches/*
+!docs/patches/MAGPIE_TIMEOUT.md
+!docs/patches/magpie-protocol-detection-timeout.patch
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
 !docs/codex-credits.md

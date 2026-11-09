@@ -6,6 +6,7 @@
 import { apiClient } from '../client'
 import type {
   UserSubscription,
+  SubscriptionBudget,
   SubscriptionProgress,
   AssignSubscriptionRequest,
   BulkAssignSubscriptionRequest,
@@ -230,6 +231,7 @@ export async function listByUser(
 }
 
 export interface SubscriptionPlan {
+  budget?: SubscriptionBudget | null
   id: number
   name: string
   description: string
@@ -239,6 +241,7 @@ export interface SubscriptionPlan {
 }
 
 export interface SubscriptionPlanInput {
+  budget?: SubscriptionBudget | null
   name: string
   description: string
   group_id: number | null
@@ -275,7 +278,12 @@ export async function bulkAssignPlan(request: { user_ids: number[]; plan_id: num
   return data
 }
 
+export async function updateBudget(id: number, budget: SubscriptionBudget, reset_usage = false): Promise<UserSubscription> {
+  const { data } = await apiClient.put<UserSubscription>(`/admin/subscriptions/${id}/budget`, { budget, reset_usage })
+  return data
+}
 export const subscriptionsAPI = {
+  updateBudget,
   list,
   getById,
   getProgress,

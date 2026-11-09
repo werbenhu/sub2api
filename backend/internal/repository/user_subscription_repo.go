@@ -38,6 +38,9 @@ func (r *userSubscriptionRepository) Create(ctx context.Context, sub *service.Us
 		SetDailyUsageUsd(sub.DailyUsageUSD).
 		SetWeeklyUsageUsd(sub.WeeklyUsageUSD).
 		SetMonthlyUsageUsd(sub.MonthlyUsageUSD).
+		SetBudget(sub.Budget).
+		SetBudgetUsageUsd(sub.BudgetUsageUSD).
+		SetNillableBudgetWindowStart(sub.BudgetWindowStart).
 		SetNillableAssignedBy(sub.AssignedBy)
 
 	if sub.StartsAt.IsZero() {
@@ -149,10 +152,16 @@ func (r *userSubscriptionRepository) Update(ctx context.Context, sub *service.Us
 		SetDailyUsageUsd(sub.DailyUsageUSD).
 		SetWeeklyUsageUsd(sub.WeeklyUsageUSD).
 		SetMonthlyUsageUsd(sub.MonthlyUsageUSD).
+		SetBudget(sub.Budget).
+		SetBudgetUsageUsd(sub.BudgetUsageUSD).
+		SetNillableBudgetWindowStart(sub.BudgetWindowStart).
 		SetNillableAssignedBy(sub.AssignedBy).
 		SetAssignedAt(sub.AssignedAt).
 		SetNotes(sub.Notes)
 
+	if sub.Budget == nil {
+		builder.ClearBudget()
+	}
 	updated, err := builder.Save(ctx)
 	if err == nil {
 		applyUserSubscriptionEntityToService(sub, updated)
@@ -469,19 +478,7 @@ func (r *userSubscriptionRepository) translateConditionalWindowReset(ctx context
 // 限额检查已在请求前由 BillingCacheService.CheckBillingEligibility 完成，
 // 此处仅负责记录实际消费，确保消费数据的完整性。
 func (r *userSubscriptionRepository) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {
-	const updateSQL = `
-		UPDATE user_subscriptions us
-		SET
-			daily_usage_usd = us.daily_usage_usd + $1,
-			weekly_usage_usd = us.weekly_usage_usd + $1,
-			monthly_usage_usd = us.monthly_usage_usd + $1,
-			updated_at = NOW()
-		FROM groups g
-		WHERE us.id = $2
-			AND us.deleted_at IS NULL
-			AND us.group_id = g.id
-			AND g.deleted_at IS NULL
-	`
+	const updateSQL = incrementSubscriptionUsageSQL
 
 	client := clientFromContext(ctx, r.client)
 	result, err := client.ExecContext(ctx, updateSQL, costUSD, id)
@@ -641,6 +638,7 @@ func userSubscriptionEntityToServiceWithStatusMapping(m *dbent.UserSubscription,
 		status = service.SubscriptionStatusRevoked
 	}
 	out := &service.UserSubscription{
+		Budget: m.Budget, BudgetUsageUSD: m.BudgetUsageUsd, BudgetWindowStart: m.BudgetWindowStart,
 		ID:                 m.ID,
 		UserID:             m.UserID,
 		GroupID:            m.GroupID,

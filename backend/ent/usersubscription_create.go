@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // UserSubscriptionCreate is the builder for creating a UserSubscription entity.
@@ -63,6 +64,40 @@ func (_c *UserSubscriptionCreate) SetDeletedAt(v time.Time) *UserSubscriptionCre
 func (_c *UserSubscriptionCreate) SetNillableDeletedAt(v *time.Time) *UserSubscriptionCreate {
 	if v != nil {
 		_c.SetDeletedAt(*v)
+	}
+	return _c
+}
+
+// SetBudget sets the "budget" field.
+func (_c *UserSubscriptionCreate) SetBudget(v *domain.SubscriptionBudget) *UserSubscriptionCreate {
+	_c.mutation.SetBudget(v)
+	return _c
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (_c *UserSubscriptionCreate) SetBudgetWindowStart(v time.Time) *UserSubscriptionCreate {
+	_c.mutation.SetBudgetWindowStart(v)
+	return _c
+}
+
+// SetNillableBudgetWindowStart sets the "budget_window_start" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableBudgetWindowStart(v *time.Time) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetBudgetWindowStart(*v)
+	}
+	return _c
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (_c *UserSubscriptionCreate) SetBudgetUsageUsd(v float64) *UserSubscriptionCreate {
+	_c.mutation.SetBudgetUsageUsd(v)
+	return _c
+}
+
+// SetNillableBudgetUsageUsd sets the "budget_usage_usd" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableBudgetUsageUsd(v *float64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetBudgetUsageUsd(*v)
 	}
 	return _c
 }
@@ -326,6 +361,10 @@ func (_c *UserSubscriptionCreate) defaults() error {
 		v := usersubscription.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.BudgetUsageUsd(); !ok {
+		v := usersubscription.DefaultBudgetUsageUsd
+		_c.mutation.SetBudgetUsageUsd(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := usersubscription.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -359,6 +398,14 @@ func (_c *UserSubscriptionCreate) check() error {
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
 		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "UserSubscription.updated_at"`)}
+	}
+	if v, ok := _c.mutation.Budget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "budget", err: fmt.Errorf(`ent: validator failed for field "UserSubscription.budget": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.BudgetUsageUsd(); !ok {
+		return &ValidationError{Name: "budget_usage_usd", err: errors.New(`ent: missing required field "UserSubscription.budget_usage_usd"`)}
 	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "UserSubscription.user_id"`)}
@@ -436,6 +483,18 @@ func (_c *UserSubscriptionCreate) createSpec() (*UserSubscription, *sqlgraph.Cre
 	if value, ok := _c.mutation.DeletedAt(); ok {
 		_spec.SetField(usersubscription.FieldDeletedAt, field.TypeTime, value)
 		_node.DeletedAt = &value
+	}
+	if value, ok := _c.mutation.Budget(); ok {
+		_spec.SetField(usersubscription.FieldBudget, field.TypeJSON, value)
+		_node.Budget = value
+	}
+	if value, ok := _c.mutation.BudgetWindowStart(); ok {
+		_spec.SetField(usersubscription.FieldBudgetWindowStart, field.TypeTime, value)
+		_node.BudgetWindowStart = &value
+	}
+	if value, ok := _c.mutation.BudgetUsageUsd(); ok {
+		_spec.SetField(usersubscription.FieldBudgetUsageUsd, field.TypeFloat64, value)
+		_node.BudgetUsageUsd = value
 	}
 	if value, ok := _c.mutation.StartsAt(); ok {
 		_spec.SetField(usersubscription.FieldStartsAt, field.TypeTime, value)
@@ -627,6 +686,60 @@ func (u *UserSubscriptionUpsert) UpdateDeletedAt() *UserSubscriptionUpsert {
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (u *UserSubscriptionUpsert) ClearDeletedAt() *UserSubscriptionUpsert {
 	u.SetNull(usersubscription.FieldDeletedAt)
+	return u
+}
+
+// SetBudget sets the "budget" field.
+func (u *UserSubscriptionUpsert) SetBudget(v *domain.SubscriptionBudget) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldBudget, v)
+	return u
+}
+
+// UpdateBudget sets the "budget" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateBudget() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldBudget)
+	return u
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (u *UserSubscriptionUpsert) ClearBudget() *UserSubscriptionUpsert {
+	u.SetNull(usersubscription.FieldBudget)
+	return u
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (u *UserSubscriptionUpsert) SetBudgetWindowStart(v time.Time) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldBudgetWindowStart, v)
+	return u
+}
+
+// UpdateBudgetWindowStart sets the "budget_window_start" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateBudgetWindowStart() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldBudgetWindowStart)
+	return u
+}
+
+// ClearBudgetWindowStart clears the value of the "budget_window_start" field.
+func (u *UserSubscriptionUpsert) ClearBudgetWindowStart() *UserSubscriptionUpsert {
+	u.SetNull(usersubscription.FieldBudgetWindowStart)
+	return u
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (u *UserSubscriptionUpsert) SetBudgetUsageUsd(v float64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldBudgetUsageUsd, v)
+	return u
+}
+
+// UpdateBudgetUsageUsd sets the "budget_usage_usd" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateBudgetUsageUsd() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldBudgetUsageUsd)
+	return u
+}
+
+// AddBudgetUsageUsd adds v to the "budget_usage_usd" field.
+func (u *UserSubscriptionUpsert) AddBudgetUsageUsd(v float64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldBudgetUsageUsd, v)
 	return u
 }
 
@@ -923,6 +1036,69 @@ func (u *UserSubscriptionUpsertOne) UpdateDeletedAt() *UserSubscriptionUpsertOne
 func (u *UserSubscriptionUpsertOne) ClearDeletedAt() *UserSubscriptionUpsertOne {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetBudget sets the "budget" field.
+func (u *UserSubscriptionUpsertOne) SetBudget(v *domain.SubscriptionBudget) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetBudget(v)
+	})
+}
+
+// UpdateBudget sets the "budget" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateBudget() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateBudget()
+	})
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (u *UserSubscriptionUpsertOne) ClearBudget() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.ClearBudget()
+	})
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (u *UserSubscriptionUpsertOne) SetBudgetWindowStart(v time.Time) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetBudgetWindowStart(v)
+	})
+}
+
+// UpdateBudgetWindowStart sets the "budget_window_start" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateBudgetWindowStart() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateBudgetWindowStart()
+	})
+}
+
+// ClearBudgetWindowStart clears the value of the "budget_window_start" field.
+func (u *UserSubscriptionUpsertOne) ClearBudgetWindowStart() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.ClearBudgetWindowStart()
+	})
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (u *UserSubscriptionUpsertOne) SetBudgetUsageUsd(v float64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetBudgetUsageUsd(v)
+	})
+}
+
+// AddBudgetUsageUsd adds v to the "budget_usage_usd" field.
+func (u *UserSubscriptionUpsertOne) AddBudgetUsageUsd(v float64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddBudgetUsageUsd(v)
+	})
+}
+
+// UpdateBudgetUsageUsd sets the "budget_usage_usd" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateBudgetUsageUsd() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateBudgetUsageUsd()
 	})
 }
 
@@ -1421,6 +1597,69 @@ func (u *UserSubscriptionUpsertBulk) UpdateDeletedAt() *UserSubscriptionUpsertBu
 func (u *UserSubscriptionUpsertBulk) ClearDeletedAt() *UserSubscriptionUpsertBulk {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.ClearDeletedAt()
+	})
+}
+
+// SetBudget sets the "budget" field.
+func (u *UserSubscriptionUpsertBulk) SetBudget(v *domain.SubscriptionBudget) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetBudget(v)
+	})
+}
+
+// UpdateBudget sets the "budget" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateBudget() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateBudget()
+	})
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (u *UserSubscriptionUpsertBulk) ClearBudget() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.ClearBudget()
+	})
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (u *UserSubscriptionUpsertBulk) SetBudgetWindowStart(v time.Time) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetBudgetWindowStart(v)
+	})
+}
+
+// UpdateBudgetWindowStart sets the "budget_window_start" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateBudgetWindowStart() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateBudgetWindowStart()
+	})
+}
+
+// ClearBudgetWindowStart clears the value of the "budget_window_start" field.
+func (u *UserSubscriptionUpsertBulk) ClearBudgetWindowStart() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.ClearBudgetWindowStart()
+	})
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (u *UserSubscriptionUpsertBulk) SetBudgetUsageUsd(v float64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetBudgetUsageUsd(v)
+	})
+}
+
+// AddBudgetUsageUsd adds v to the "budget_usage_usd" field.
+func (u *UserSubscriptionUpsertBulk) AddBudgetUsageUsd(v float64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddBudgetUsageUsd(v)
+	})
+}
+
+// UpdateBudgetUsageUsd sets the "budget_usage_usd" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateBudgetUsageUsd() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateBudgetUsageUsd()
 	})
 }
 

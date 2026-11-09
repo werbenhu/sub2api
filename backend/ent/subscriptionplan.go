@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // SubscriptionPlan is the model entity for the SubscriptionPlan schema.
@@ -17,6 +19,8 @@ type SubscriptionPlan struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int64 `json:"id,omitempty"`
+	// Budget holds the value of the "budget" field.
+	Budget *domain.SubscriptionBudget `json:"budget,omitempty"`
 	// GroupID holds the value of the "group_id" field.
 	GroupID int64 `json:"group_id,omitempty"`
 	// Name holds the value of the "name" field.
@@ -53,6 +57,8 @@ func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case subscriptionplan.FieldBudget:
+			values[i] = new([]byte)
 		case subscriptionplan.FieldForSale:
 			values[i] = new(sql.NullBool)
 		case subscriptionplan.FieldPrice, subscriptionplan.FieldOriginalPrice:
@@ -84,6 +90,14 @@ func (_m *SubscriptionPlan) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int64(value.Int64)
+		case subscriptionplan.FieldBudget:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field budget", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Budget); err != nil {
+					return fmt.Errorf("unmarshal field budget: %w", err)
+				}
+			}
 		case subscriptionplan.FieldGroupID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field group_id", values[i])
@@ -205,6 +219,9 @@ func (_m *SubscriptionPlan) String() string {
 	var builder strings.Builder
 	builder.WriteString("SubscriptionPlan(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("budget=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Budget))
+	builder.WriteString(", ")
 	builder.WriteString("group_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.GroupID))
 	builder.WriteString(", ")

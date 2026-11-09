@@ -892,7 +892,16 @@ func UserSubscriptionFromServiceAdmin(sub *service.UserSubscription) *AdminUserS
 }
 
 func userSubscriptionFromServiceBase(sub *service.UserSubscription) UserSubscription {
-	return UserSubscription{
+	now := time.Now()
+	var remaining *float64
+	var resetAt *time.Time
+	used := sub.EffectiveBudgetUsage(now)
+	if sub.Budget != nil {
+		r := max(0, sub.Budget.AmountUSD-used)
+		remaining = &r
+		resetAt = sub.Budget.NextReset(sub.StartsAt, sub.ExpiresAt, now)
+	}
+	return UserSubscription{Budget: sub.Budget, BudgetUsageUSD: used, BudgetRemainingUSD: remaining, BudgetResetAt: resetAt,
 		ID:                 sub.ID,
 		UserID:             sub.UserID,
 		GroupID:            sub.GroupID,

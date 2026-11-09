@@ -4,6 +4,8 @@ import (
 	"context"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -18,11 +20,12 @@ type subscriptionPlanService interface {
 }
 
 type SubscriptionPlanRequest struct {
-	Name         string `json:"name" binding:"required"`
-	Description  string `json:"description"`
-	GroupID      int64  `json:"group_id" binding:"required"`
-	ValidityDays int    `json:"validity_days" binding:"required,min=1,max=36500"`
-	SortOrder    int    `json:"sort_order"`
+	Budget       *domain.SubscriptionBudget `json:"budget"`
+	Name         string                     `json:"name" binding:"required"`
+	Description  string                     `json:"description"`
+	GroupID      int64                      `json:"group_id" binding:"required"`
+	ValidityDays int                        `json:"validity_days" binding:"required,min=1,max=36500"`
+	SortOrder    int                        `json:"sort_order"`
 }
 
 type AssignSubscriptionPlanRequest struct {
@@ -57,7 +60,7 @@ func (h *SubscriptionHandler) CreatePlan(c *gin.Context) {
 		return
 	}
 	plan, err := h.planService.CreatePlan(c.Request.Context(), service.CreatePlanRequest{
-		GroupID: req.GroupID, Name: req.Name, Description: req.Description,
+		Budget: req.Budget, GroupID: req.GroupID, Name: req.Name, Description: req.Description,
 		ValidityDays: req.ValidityDays, ValidityUnit: "day", SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -79,7 +82,7 @@ func (h *SubscriptionHandler) UpdatePlan(c *gin.Context) {
 	}
 	validityUnit := "day"
 	plan, err := h.planService.UpdatePlan(c.Request.Context(), id, service.UpdatePlanRequest{
-		GroupID: &req.GroupID, Name: &req.Name, Description: &req.Description,
+		Budget: req.Budget, ClearBudget: req.Budget == nil, GroupID: &req.GroupID, Name: &req.Name, Description: &req.Description,
 		ValidityDays: &req.ValidityDays, ValidityUnit: &validityUnit, SortOrder: &req.SortOrder,
 	})
 	if err != nil {
@@ -114,13 +117,13 @@ func (h *SubscriptionHandler) AssignPlan(c *gin.Context) {
 	}
 	subscription, err := h.subscriptionService.AssignSubscription(c.Request.Context(), &service.AssignSubscriptionInput{
 		UserID: req.UserID, GroupID: plan.GroupID, ValidityDays: plan.ValidityDays,
-		AssignedBy: getAdminIDFromContext(c), Notes: req.Notes,
+		Budget: plan.Budget, AssignedBy: getAdminIDFromContext(c), Notes: req.Notes,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, subscription)
+	response.Success(c, adminSubscriptionResponse(c, dto.UserSubscriptionFromServiceAdmin(subscription)))
 }
 
 func (h *SubscriptionHandler) BulkAssignPlan(c *gin.Context) {
@@ -136,11 +139,11 @@ func (h *SubscriptionHandler) BulkAssignPlan(c *gin.Context) {
 	}
 	result, err := h.subscriptionService.BulkAssignSubscription(c.Request.Context(), &service.BulkAssignSubscriptionInput{
 		UserIDs: req.UserIDs, GroupID: plan.GroupID, ValidityDays: plan.ValidityDays,
-		AssignedBy: getAdminIDFromContext(c), Notes: req.Notes,
+		Budget: plan.Budget, AssignedBy: getAdminIDFromContext(c), Notes: req.Notes,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, adminSubscriptionResponse(c, dto.BulkAssignResultFromService(result)))
 }

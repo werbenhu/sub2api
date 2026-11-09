@@ -218,7 +218,7 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		b.SetProviderSnapshot(providerSnapshot)
 	}
 	if plan != nil {
-		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
+		b.SetSubscriptionBudget(cloneSubscriptionBudget(plan.Budget)).SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
 	}
 	order, err := b.Save(ctx)
 	if err != nil {

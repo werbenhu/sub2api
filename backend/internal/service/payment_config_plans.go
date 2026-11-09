@@ -148,6 +148,9 @@ func (s *PaymentConfigService) validatePlanGroup(ctx context.Context, groupID in
 }
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
+	if err := validateSubscriptionBudget(req.Budget); err != nil {
+		return nil, err
+	}
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
@@ -159,7 +162,7 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 		return nil, err
 	}
 	b := s.entClient.SubscriptionPlan.Create().
-		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
+		SetBudget(req.Budget).SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
 		SetPrice(req.Price).SetCurrency(currency).SetValidityDays(req.ValidityDays).SetValidityUnit(req.ValidityUnit).
 		SetFeatures(req.Features).SetProductName(req.ProductName).
 		SetForSale(req.ForSale).SetSortOrder(req.SortOrder)
@@ -173,6 +176,9 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 // NOTE: This function exceeds 30 lines due to per-field nil-check patch update boilerplate
 // plus a validation guard for non-nil fields.
 func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*dbent.SubscriptionPlan, error) {
+	if err := validateSubscriptionBudget(req.Budget); err != nil {
+		return nil, err
+	}
 	if err := validatePlanPatch(req); err != nil {
 		return nil, err
 	}
@@ -182,6 +188,11 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		}
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
+	if req.Budget != nil {
+		u.SetBudget(req.Budget)
+	} else if req.ClearBudget {
+		u.ClearBudget()
+	}
 	if req.GroupID != nil {
 		u.SetGroupID(*req.GroupID)
 	}

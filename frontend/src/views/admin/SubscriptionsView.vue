@@ -250,8 +250,9 @@
 
           <template #cell-usage="{ row }">
             <div class="min-w-[280px] space-y-2">
+              <SubscriptionBudgetUsage :subscription="row" />
               <!-- Daily Usage -->
-              <div v-if="row.group?.daily_limit_usd" class="usage-row">
+              <div v-if="!row.budget && row.group?.daily_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{ t('admin.subscriptions.daily') }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
@@ -288,7 +289,7 @@
               </div>
 
               <!-- Weekly Usage -->
-              <div v-if="row.group?.weekly_limit_usd" class="usage-row">
+              <div v-if="!row.budget && row.group?.weekly_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{ t('admin.subscriptions.weekly') }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
@@ -325,7 +326,7 @@
               </div>
 
               <!-- Monthly Usage -->
-              <div v-if="row.group?.monthly_limit_usd" class="usage-row">
+              <div v-if="!row.budget && row.group?.monthly_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{ t('admin.subscriptions.monthly') }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
@@ -364,7 +365,7 @@
               <!-- No Limits - Unlimited badge -->
               <div
                 v-if="
-                  !row.group?.daily_limit_usd &&
+                  !row.budget && !row.group?.daily_limit_usd &&
                   !row.group?.weekly_limit_usd &&
                   !row.group?.monthly_limit_usd
                 "
@@ -421,6 +422,7 @@
 
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
+              <button type="button" class="btn btn-secondary btn-sm" @click="openBudget(row)">{{ t('subscriptionBudget.edit') }}</button>
               <button
                 v-if="row.status === 'active' || row.status === 'expired'"
                 @click="handleExtend(row)"
@@ -431,7 +433,7 @@
               </button>
               <button
                 v-if="row.status === 'active'"
-                @click="handleResetQuota(row)"
+                @click="row.budget ? openBudget(row, true) : handleResetQuota(row)"
                 :disabled="resettingQuota && resettingSubscription?.id === row.id"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -635,6 +637,16 @@
       </template>
     </BaseDialog>
 
+    <BaseDialog :show="!!budgetSubscription" :title="t('subscriptionBudget.edit')" width="normal" @close="budgetSubscription = null">
+      <form class="space-y-4" @submit.prevent="saveBudget">
+        <SubscriptionBudgetEditor v-model="budgetForm" />
+        <label class="flex items-center gap-2"><input v-model="resetBudgetUsage" type="checkbox" />{{ t('subscriptionBudget.resetUsage') }}</label>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-secondary" @click="budgetSubscription = null">{{ t('common.cancel') }}</button>
+          <button type="submit" class="btn btn-primary" :disabled="!budgetForm || submitting">{{ t('common.save') }}</button>
+        </div>
+      </form>
+    </BaseDialog>
     <!-- Adjust Subscription Modal -->
     <BaseDialog
       :show="showExtendModal"
@@ -819,6 +831,11 @@
 </template>
 
 <script setup lang="ts">
+import SubscriptionBudgetEditor from '@/components/admin/subscription/SubscriptionBudgetEditor.vue'
+import type { SubscriptionBudget } from '@/types'
+import { defaultSubscriptionBudget } from '@/utils/subscriptionBudget'
+
+import SubscriptionBudgetUsage from '@/components/subscription/SubscriptionBudgetUsage.vue'
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1065,9 +1082,29 @@ const restoringSubscription = ref<UserSubscription | null>(null)
 
 const plans = ref<SubscriptionPlan[]>([])
 const showPlansModal = ref(false)
+const budgetSubscription = ref<UserSubscription | null>(null)
+const budgetForm = ref<SubscriptionBudget | null>(null)
+const resetBudgetUsage = ref(false)
+function openBudget(subscription: UserSubscription, reset = false) {
+  budgetSubscription.value = subscription
+  budgetForm.value = subscription.budget ? { ...subscription.budget } : defaultSubscriptionBudget()
+  resetBudgetUsage.value = reset
+}
+async function saveBudget() {
+  if (!budgetSubscription.value || !budgetForm.value || submitting.value) return
+  submitting.value = true
+  try {
+    await adminAPI.subscriptions.updateBudget(budgetSubscription.value.id, budgetForm.value, resetBudgetUsage.value)
+    budgetSubscription.value = null
+    appStore.showSuccess(t('subscriptionBudget.saved'))
+    await loadSubscriptions()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.subscriptions.failedToSave'))
+  } finally { submitting.value = false }
+}
 const planOptions = computed(() => plans.value.map(plan => ({
   value: plan.id,
-  label: `${plan.name} · ${plan.validity_days} ${t('admin.subscriptions.days')}`
+  label: `${plan.name} · ${plan.validity_days} ${t('admin.subscriptions.days')}${plan.budget ? ` · $${plan.budget.amount_usd} / ${t(`subscriptionBudget.${plan.budget.reset_period}`)}` : ''}`
 })))
 const loadPlans = async () => {
   try {

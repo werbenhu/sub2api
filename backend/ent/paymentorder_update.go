@@ -14,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // PaymentOrderUpdate is the builder for updating PaymentOrder entities.
@@ -356,6 +357,18 @@ func (_u *PaymentOrderUpdate) AddSubscriptionGroupID(v int64) *PaymentOrderUpdat
 // ClearSubscriptionGroupID clears the value of the "subscription_group_id" field.
 func (_u *PaymentOrderUpdate) ClearSubscriptionGroupID() *PaymentOrderUpdate {
 	_u.mutation.ClearSubscriptionGroupID()
+	return _u
+}
+
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (_u *PaymentOrderUpdate) SetSubscriptionBudget(v *domain.SubscriptionBudget) *PaymentOrderUpdate {
+	_u.mutation.SetSubscriptionBudget(v)
+	return _u
+}
+
+// ClearSubscriptionBudget clears the value of the "subscription_budget" field.
+func (_u *PaymentOrderUpdate) ClearSubscriptionBudget() *PaymentOrderUpdate {
+	_u.mutation.ClearSubscriptionBudget()
 	return _u
 }
 
@@ -824,6 +837,11 @@ func (_u *PaymentOrderUpdate) check() error {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SubscriptionBudget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "subscription_budget", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.subscription_budget": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ProviderInstanceID(); ok {
 		if err := paymentorder.ProviderInstanceIDValidator(v); err != nil {
 			return &ValidationError{Name: "provider_instance_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.provider_instance_id": %w`, err)}
@@ -958,6 +976,12 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.SubscriptionGroupIDCleared() {
 		_spec.ClearField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.SubscriptionBudget(); ok {
+		_spec.SetField(paymentorder.FieldSubscriptionBudget, field.TypeJSON, value)
+	}
+	if _u.mutation.SubscriptionBudgetCleared() {
+		_spec.ClearField(paymentorder.FieldSubscriptionBudget, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.SubscriptionDays(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionDays, field.TypeInt, value)
@@ -1449,6 +1473,18 @@ func (_u *PaymentOrderUpdateOne) ClearSubscriptionGroupID() *PaymentOrderUpdateO
 	return _u
 }
 
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (_u *PaymentOrderUpdateOne) SetSubscriptionBudget(v *domain.SubscriptionBudget) *PaymentOrderUpdateOne {
+	_u.mutation.SetSubscriptionBudget(v)
+	return _u
+}
+
+// ClearSubscriptionBudget clears the value of the "subscription_budget" field.
+func (_u *PaymentOrderUpdateOne) ClearSubscriptionBudget() *PaymentOrderUpdateOne {
+	_u.mutation.ClearSubscriptionBudget()
+	return _u
+}
+
 // SetSubscriptionDays sets the "subscription_days" field.
 func (_u *PaymentOrderUpdateOne) SetSubscriptionDays(v int) *PaymentOrderUpdateOne {
 	_u.mutation.ResetSubscriptionDays()
@@ -1927,6 +1963,11 @@ func (_u *PaymentOrderUpdateOne) check() error {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SubscriptionBudget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "subscription_budget", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.subscription_budget": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ProviderInstanceID(); ok {
 		if err := paymentorder.ProviderInstanceIDValidator(v); err != nil {
 			return &ValidationError{Name: "provider_instance_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.provider_instance_id": %w`, err)}
@@ -2078,6 +2119,12 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.SubscriptionGroupIDCleared() {
 		_spec.ClearField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.SubscriptionBudget(); ok {
+		_spec.SetField(paymentorder.FieldSubscriptionBudget, field.TypeJSON, value)
+	}
+	if _u.mutation.SubscriptionBudgetCleared() {
+		_spec.ClearField(paymentorder.FieldSubscriptionBudget, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.SubscriptionDays(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionDays, field.TypeInt, value)

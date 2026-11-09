@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // UserSubscriptionUpdate is the builder for updating UserSubscription entities.
@@ -54,6 +55,59 @@ func (_u *UserSubscriptionUpdate) SetNillableDeletedAt(v *time.Time) *UserSubscr
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (_u *UserSubscriptionUpdate) ClearDeletedAt() *UserSubscriptionUpdate {
 	_u.mutation.ClearDeletedAt()
+	return _u
+}
+
+// SetBudget sets the "budget" field.
+func (_u *UserSubscriptionUpdate) SetBudget(v *domain.SubscriptionBudget) *UserSubscriptionUpdate {
+	_u.mutation.SetBudget(v)
+	return _u
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (_u *UserSubscriptionUpdate) ClearBudget() *UserSubscriptionUpdate {
+	_u.mutation.ClearBudget()
+	return _u
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (_u *UserSubscriptionUpdate) SetBudgetWindowStart(v time.Time) *UserSubscriptionUpdate {
+	_u.mutation.SetBudgetWindowStart(v)
+	return _u
+}
+
+// SetNillableBudgetWindowStart sets the "budget_window_start" field if the given value is not nil.
+func (_u *UserSubscriptionUpdate) SetNillableBudgetWindowStart(v *time.Time) *UserSubscriptionUpdate {
+	if v != nil {
+		_u.SetBudgetWindowStart(*v)
+	}
+	return _u
+}
+
+// ClearBudgetWindowStart clears the value of the "budget_window_start" field.
+func (_u *UserSubscriptionUpdate) ClearBudgetWindowStart() *UserSubscriptionUpdate {
+	_u.mutation.ClearBudgetWindowStart()
+	return _u
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (_u *UserSubscriptionUpdate) SetBudgetUsageUsd(v float64) *UserSubscriptionUpdate {
+	_u.mutation.ResetBudgetUsageUsd()
+	_u.mutation.SetBudgetUsageUsd(v)
+	return _u
+}
+
+// SetNillableBudgetUsageUsd sets the "budget_usage_usd" field if the given value is not nil.
+func (_u *UserSubscriptionUpdate) SetNillableBudgetUsageUsd(v *float64) *UserSubscriptionUpdate {
+	if v != nil {
+		_u.SetBudgetUsageUsd(*v)
+	}
+	return _u
+}
+
+// AddBudgetUsageUsd adds value to the "budget_usage_usd" field.
+func (_u *UserSubscriptionUpdate) AddBudgetUsageUsd(v float64) *UserSubscriptionUpdate {
+	_u.mutation.AddBudgetUsageUsd(v)
 	return _u
 }
 
@@ -436,6 +490,11 @@ func (_u *UserSubscriptionUpdate) defaults() error {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *UserSubscriptionUpdate) check() error {
+	if v, ok := _u.mutation.Budget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "budget", err: fmt.Errorf(`ent: validator failed for field "UserSubscription.budget": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := usersubscription.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "UserSubscription.status": %w`, err)}
@@ -470,6 +529,24 @@ func (_u *UserSubscriptionUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if _u.mutation.DeletedAtCleared() {
 		_spec.ClearField(usersubscription.FieldDeletedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Budget(); ok {
+		_spec.SetField(usersubscription.FieldBudget, field.TypeJSON, value)
+	}
+	if _u.mutation.BudgetCleared() {
+		_spec.ClearField(usersubscription.FieldBudget, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BudgetWindowStart(); ok {
+		_spec.SetField(usersubscription.FieldBudgetWindowStart, field.TypeTime, value)
+	}
+	if _u.mutation.BudgetWindowStartCleared() {
+		_spec.ClearField(usersubscription.FieldBudgetWindowStart, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BudgetUsageUsd(); ok {
+		_spec.SetField(usersubscription.FieldBudgetUsageUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBudgetUsageUsd(); ok {
+		_spec.AddField(usersubscription.FieldBudgetUsageUsd, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.StartsAt(); ok {
 		_spec.SetField(usersubscription.FieldStartsAt, field.TypeTime, value)
@@ -700,6 +777,59 @@ func (_u *UserSubscriptionUpdateOne) SetNillableDeletedAt(v *time.Time) *UserSub
 // ClearDeletedAt clears the value of the "deleted_at" field.
 func (_u *UserSubscriptionUpdateOne) ClearDeletedAt() *UserSubscriptionUpdateOne {
 	_u.mutation.ClearDeletedAt()
+	return _u
+}
+
+// SetBudget sets the "budget" field.
+func (_u *UserSubscriptionUpdateOne) SetBudget(v *domain.SubscriptionBudget) *UserSubscriptionUpdateOne {
+	_u.mutation.SetBudget(v)
+	return _u
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (_u *UserSubscriptionUpdateOne) ClearBudget() *UserSubscriptionUpdateOne {
+	_u.mutation.ClearBudget()
+	return _u
+}
+
+// SetBudgetWindowStart sets the "budget_window_start" field.
+func (_u *UserSubscriptionUpdateOne) SetBudgetWindowStart(v time.Time) *UserSubscriptionUpdateOne {
+	_u.mutation.SetBudgetWindowStart(v)
+	return _u
+}
+
+// SetNillableBudgetWindowStart sets the "budget_window_start" field if the given value is not nil.
+func (_u *UserSubscriptionUpdateOne) SetNillableBudgetWindowStart(v *time.Time) *UserSubscriptionUpdateOne {
+	if v != nil {
+		_u.SetBudgetWindowStart(*v)
+	}
+	return _u
+}
+
+// ClearBudgetWindowStart clears the value of the "budget_window_start" field.
+func (_u *UserSubscriptionUpdateOne) ClearBudgetWindowStart() *UserSubscriptionUpdateOne {
+	_u.mutation.ClearBudgetWindowStart()
+	return _u
+}
+
+// SetBudgetUsageUsd sets the "budget_usage_usd" field.
+func (_u *UserSubscriptionUpdateOne) SetBudgetUsageUsd(v float64) *UserSubscriptionUpdateOne {
+	_u.mutation.ResetBudgetUsageUsd()
+	_u.mutation.SetBudgetUsageUsd(v)
+	return _u
+}
+
+// SetNillableBudgetUsageUsd sets the "budget_usage_usd" field if the given value is not nil.
+func (_u *UserSubscriptionUpdateOne) SetNillableBudgetUsageUsd(v *float64) *UserSubscriptionUpdateOne {
+	if v != nil {
+		_u.SetBudgetUsageUsd(*v)
+	}
+	return _u
+}
+
+// AddBudgetUsageUsd adds value to the "budget_usage_usd" field.
+func (_u *UserSubscriptionUpdateOne) AddBudgetUsageUsd(v float64) *UserSubscriptionUpdateOne {
+	_u.mutation.AddBudgetUsageUsd(v)
 	return _u
 }
 
@@ -1095,6 +1225,11 @@ func (_u *UserSubscriptionUpdateOne) defaults() error {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *UserSubscriptionUpdateOne) check() error {
+	if v, ok := _u.mutation.Budget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "budget", err: fmt.Errorf(`ent: validator failed for field "UserSubscription.budget": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := usersubscription.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "UserSubscription.status": %w`, err)}
@@ -1146,6 +1281,24 @@ func (_u *UserSubscriptionUpdateOne) sqlSave(ctx context.Context) (_node *UserSu
 	}
 	if _u.mutation.DeletedAtCleared() {
 		_spec.ClearField(usersubscription.FieldDeletedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Budget(); ok {
+		_spec.SetField(usersubscription.FieldBudget, field.TypeJSON, value)
+	}
+	if _u.mutation.BudgetCleared() {
+		_spec.ClearField(usersubscription.FieldBudget, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BudgetWindowStart(); ok {
+		_spec.SetField(usersubscription.FieldBudgetWindowStart, field.TypeTime, value)
+	}
+	if _u.mutation.BudgetWindowStartCleared() {
+		_spec.ClearField(usersubscription.FieldBudgetWindowStart, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BudgetUsageUsd(); ok {
+		_spec.SetField(usersubscription.FieldBudgetUsageUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBudgetUsageUsd(); ok {
+		_spec.AddField(usersubscription.FieldBudgetUsageUsd, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.StartsAt(); ok {
 		_spec.SetField(usersubscription.FieldStartsAt, field.TypeTime, value)

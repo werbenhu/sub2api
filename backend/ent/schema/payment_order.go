@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"time"
 
 	"entgo.io/ent"
@@ -88,6 +89,7 @@ func (PaymentOrder) Fields() []ent.Field {
 		field.Int64("subscription_group_id").
 			Optional().
 			Nillable(),
+		field.JSON("subscription_budget", &domain.SubscriptionBudget{}).Optional(),
 		field.Int("subscription_days").
 			Optional().
 			Nillable(),

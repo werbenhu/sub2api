@@ -13,6 +13,8 @@ const (
 	Label = "subscription_plan"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldBudget holds the string denoting the budget field in the database.
+	FieldBudget = "budget"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
 	// FieldName holds the string denoting the name field in the database.
@@ -48,6 +50,7 @@ const (
 // Columns holds all SQL columns for subscriptionplan fields.
 var Columns = []string{
 	FieldID,
+	FieldBudget,
 	FieldGroupID,
 	FieldName,
 	FieldDescription,

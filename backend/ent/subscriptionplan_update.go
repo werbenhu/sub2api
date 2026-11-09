@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // SubscriptionPlanUpdate is the builder for updating SubscriptionPlan entities.
@@ -25,6 +26,18 @@ type SubscriptionPlanUpdate struct {
 // Where appends a list predicates to the SubscriptionPlanUpdate builder.
 func (_u *SubscriptionPlanUpdate) Where(ps ...predicate.SubscriptionPlan) *SubscriptionPlanUpdate {
 	_u.mutation.Where(ps...)
+	return _u
+}
+
+// SetBudget sets the "budget" field.
+func (_u *SubscriptionPlanUpdate) SetBudget(v *domain.SubscriptionBudget) *SubscriptionPlanUpdate {
+	_u.mutation.SetBudget(v)
+	return _u
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (_u *SubscriptionPlanUpdate) ClearBudget() *SubscriptionPlanUpdate {
+	_u.mutation.ClearBudget()
 	return _u
 }
 
@@ -286,6 +299,11 @@ func (_u *SubscriptionPlanUpdate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *SubscriptionPlanUpdate) check() error {
+	if v, ok := _u.mutation.Budget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "budget", err: fmt.Errorf(`ent: validator failed for field "SubscriptionPlan.budget": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Name(); ok {
 		if err := subscriptionplan.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "SubscriptionPlan.name": %w`, err)}
@@ -320,6 +338,12 @@ func (_u *SubscriptionPlanUpdate) sqlSave(ctx context.Context) (_node int, err e
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.Budget(); ok {
+		_spec.SetField(subscriptionplan.FieldBudget, field.TypeJSON, value)
+	}
+	if _u.mutation.BudgetCleared() {
+		_spec.ClearField(subscriptionplan.FieldBudget, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.GroupID(); ok {
 		_spec.SetField(subscriptionplan.FieldGroupID, field.TypeInt64, value)
@@ -396,6 +420,18 @@ type SubscriptionPlanUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *SubscriptionPlanMutation
+}
+
+// SetBudget sets the "budget" field.
+func (_u *SubscriptionPlanUpdateOne) SetBudget(v *domain.SubscriptionBudget) *SubscriptionPlanUpdateOne {
+	_u.mutation.SetBudget(v)
+	return _u
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (_u *SubscriptionPlanUpdateOne) ClearBudget() *SubscriptionPlanUpdateOne {
+	_u.mutation.ClearBudget()
+	return _u
 }
 
 // SetGroupID sets the "group_id" field.
@@ -669,6 +705,11 @@ func (_u *SubscriptionPlanUpdateOne) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *SubscriptionPlanUpdateOne) check() error {
+	if v, ok := _u.mutation.Budget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "budget", err: fmt.Errorf(`ent: validator failed for field "SubscriptionPlan.budget": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Name(); ok {
 		if err := subscriptionplan.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "SubscriptionPlan.name": %w`, err)}
@@ -720,6 +761,12 @@ func (_u *SubscriptionPlanUpdateOne) sqlSave(ctx context.Context) (_node *Subscr
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.Budget(); ok {
+		_spec.SetField(subscriptionplan.FieldBudget, field.TypeJSON, value)
+	}
+	if _u.mutation.BudgetCleared() {
+		_spec.ClearField(subscriptionplan.FieldBudget, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.GroupID(); ok {
 		_spec.SetField(subscriptionplan.FieldGroupID, field.TypeInt64, value)

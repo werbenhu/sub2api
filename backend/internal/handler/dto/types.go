@@ -758,9 +758,13 @@ type Setting struct {
 }
 
 type UserSubscription struct {
-	ID      int64 `json:"id"`
-	UserID  int64 `json:"user_id"`
-	GroupID int64 `json:"group_id"`
+	Budget             *domain.SubscriptionBudget `json:"budget"`
+	BudgetUsageUSD     float64                    `json:"budget_usage_usd"`
+	BudgetRemainingUSD *float64                   `json:"budget_remaining_usd"`
+	BudgetResetAt      *time.Time                 `json:"budget_reset_at"`
+	ID                 int64                      `json:"id"`
+	UserID             int64                      `json:"user_id"`
+	GroupID            int64                      `json:"group_id"`
 
 	StartsAt  time.Time `json:"starts_at"`
 	ExpiresAt time.Time `json:"expires_at"`

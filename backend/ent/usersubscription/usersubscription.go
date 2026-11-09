@@ -21,6 +21,12 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// FieldDeletedAt holds the string denoting the deleted_at field in the database.
 	FieldDeletedAt = "deleted_at"
+	// FieldBudget holds the string denoting the budget field in the database.
+	FieldBudget = "budget"
+	// FieldBudgetWindowStart holds the string denoting the budget_window_start field in the database.
+	FieldBudgetWindowStart = "budget_window_start"
+	// FieldBudgetUsageUsd holds the string denoting the budget_usage_usd field in the database.
+	FieldBudgetUsageUsd = "budget_usage_usd"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldGroupID holds the string denoting the group_id field in the database.
@@ -95,6 +101,9 @@ var Columns = []string{
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldDeletedAt,
+	FieldBudget,
+	FieldBudgetWindowStart,
+	FieldBudgetUsageUsd,
 	FieldUserID,
 	FieldGroupID,
 	FieldStartsAt,
@@ -135,6 +144,8 @@ var (
 	DefaultUpdatedAt func() time.Time
 	// UpdateDefaultUpdatedAt holds the default value on update for the "updated_at" field.
 	UpdateDefaultUpdatedAt func() time.Time
+	// DefaultBudgetUsageUsd holds the default value on creation for the "budget_usage_usd" field.
+	DefaultBudgetUsageUsd float64
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -170,6 +181,16 @@ func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByDeletedAt orders the results by the deleted_at field.
 func ByDeletedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDeletedAt, opts...).ToFunc()
+}
+
+// ByBudgetWindowStart orders the results by the budget_window_start field.
+func ByBudgetWindowStart(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBudgetWindowStart, opts...).ToFunc()
+}
+
+// ByBudgetUsageUsd orders the results by the budget_usage_usd field.
+func ByBudgetUsageUsd(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBudgetUsageUsd, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.

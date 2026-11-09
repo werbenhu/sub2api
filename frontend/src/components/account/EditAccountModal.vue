@@ -26,6 +26,8 @@
         <p class="input-hint">{{ t('admin.accounts.notesHint') }}</p>
       </div>
 
+      <AccountModelPricingEditor v-model="accountPricing" :platform="account.platform" />
+
       <!-- API Key fields (only for apikey type) -->
       <div v-if="account.type === 'apikey'" class="space-y-4">
         <div v-if="!isCNApiKeyAccount || editApiProtocol !== 'adaptive'">
@@ -3387,6 +3389,9 @@
 </template>
 
 <script setup lang="ts">
+import AccountModelPricingEditor from './AccountModelPricingEditor.vue'
+import type { ChannelModelPricing } from '@/api/admin/channels'
+
 import { ref, reactive, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -4501,6 +4506,7 @@ const mixedChannelWarningMessageText = computed(() => {
   return mixedChannelWarningRawMessage.value
 })
 
+const accountPricing = ref<ChannelModelPricing[]>([])
 const form = reactive({
   name: '',
   notes: '',
@@ -4597,6 +4603,7 @@ const applyOpenAIModelMappingCredentials = (credentials: Record<string, unknown>
 }
 
 const syncFormFromAccount = (newAccount: Account | null) => {
+  accountPricing.value = JSON.parse(JSON.stringify((newAccount?.extra?.model_pricing as ChannelModelPricing[] | undefined) || []))
   if (!newAccount) {
     return
   }
@@ -6408,6 +6415,7 @@ const handleSubmit = async () => {
       updatePayload.extra = newExtra
     }
 
+    updatePayload.extra = { ...((updatePayload.extra || props.account.extra || {}) as Record<string, unknown>), model_pricing: accountPricing.value }
     const canContinue = await ensureAntigravityMixedChannelConfirmed(async () => {
       await submitUpdateAccount(accountID, updatePayload)
     })

@@ -1,4 +1,37 @@
 export default {
+  subscriptionBudget: {
+      "title": "Subscription allowance",
+      "hint": "Each period restores the allowance without carryover. Overall expiry is separate. Replaces the group daily/weekly/monthly monetary limits.",
+      "legacy": "Uses the group daily/weekly/monthly limits when disabled.",
+      "amount": "Amount per period (USD)",
+      "period": "Reset period",
+      "hours": "Every N hours",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "custom": "Every N days",
+      "none": "Once for the entire term",
+      "hoursLabel": "Interval in hours",
+      "daysLabel": "Interval in days",
+      "time": "Reset time",
+      "timezone": "Timezone (IANA)",
+      "hoursHint": "Resets every N hours from the subscription start time.",
+      "dailyHint": "Resets daily at the selected local time.",
+      "weeklyHint": "Resets on Monday at the selected local time.",
+      "monthlyHint": "Resets on the first day of each month at the selected local time.",
+      "customHint": "Resets every N calendar days, anchored to the start date and reset time.",
+      "noneHint": "One allowance for the entire subscription term; no automatic reset.",
+      "remaining": "Remaining: ${amount}",
+      "nextReset": "Next reset: {time}",
+      "edit": "Edit allowance",
+      "resetUsage": "Also clear current-period consumption",
+      "saved": "Subscription allowance updated"
+  },
+  accountPricing: {
+      "title": "Account model pricing",
+      "add": "Add model pricing",
+      "hint": "Selecting a model fills official defaults. Account overrides take priority over group/channel prices for user billing, then group multipliers apply. Remove all entries to restore existing pricing."
+  },
   common: {
     loading: 'Loading...',
     submitting: 'Submitting...',

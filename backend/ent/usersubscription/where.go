@@ -70,6 +70,16 @@ func DeletedAt(v time.Time) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldDeletedAt, v))
 }
 
+// BudgetWindowStart applies equality check predicate on the "budget_window_start" field. It's identical to BudgetWindowStartEQ.
+func BudgetWindowStart(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldBudgetWindowStart, v))
+}
+
+// BudgetUsageUsd applies equality check predicate on the "budget_usage_usd" field. It's identical to BudgetUsageUsdEQ.
+func BudgetUsageUsd(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldBudgetUsageUsd, v))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v int64) predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldEQ(FieldUserID, v))
@@ -268,6 +278,106 @@ func DeletedAtIsNil() predicate.UserSubscription {
 // DeletedAtNotNil applies the NotNil predicate on the "deleted_at" field.
 func DeletedAtNotNil() predicate.UserSubscription {
 	return predicate.UserSubscription(sql.FieldNotNull(FieldDeletedAt))
+}
+
+// BudgetIsNil applies the IsNil predicate on the "budget" field.
+func BudgetIsNil() predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIsNull(FieldBudget))
+}
+
+// BudgetNotNil applies the NotNil predicate on the "budget" field.
+func BudgetNotNil() predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotNull(FieldBudget))
+}
+
+// BudgetWindowStartEQ applies the EQ predicate on the "budget_window_start" field.
+func BudgetWindowStartEQ(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldBudgetWindowStart, v))
+}
+
+// BudgetWindowStartNEQ applies the NEQ predicate on the "budget_window_start" field.
+func BudgetWindowStartNEQ(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNEQ(FieldBudgetWindowStart, v))
+}
+
+// BudgetWindowStartIn applies the In predicate on the "budget_window_start" field.
+func BudgetWindowStartIn(vs ...time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIn(FieldBudgetWindowStart, vs...))
+}
+
+// BudgetWindowStartNotIn applies the NotIn predicate on the "budget_window_start" field.
+func BudgetWindowStartNotIn(vs ...time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotIn(FieldBudgetWindowStart, vs...))
+}
+
+// BudgetWindowStartGT applies the GT predicate on the "budget_window_start" field.
+func BudgetWindowStartGT(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGT(FieldBudgetWindowStart, v))
+}
+
+// BudgetWindowStartGTE applies the GTE predicate on the "budget_window_start" field.
+func BudgetWindowStartGTE(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGTE(FieldBudgetWindowStart, v))
+}
+
+// BudgetWindowStartLT applies the LT predicate on the "budget_window_start" field.
+func BudgetWindowStartLT(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLT(FieldBudgetWindowStart, v))
+}
+
+// BudgetWindowStartLTE applies the LTE predicate on the "budget_window_start" field.
+func BudgetWindowStartLTE(v time.Time) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLTE(FieldBudgetWindowStart, v))
+}
+
+// BudgetWindowStartIsNil applies the IsNil predicate on the "budget_window_start" field.
+func BudgetWindowStartIsNil() predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIsNull(FieldBudgetWindowStart))
+}
+
+// BudgetWindowStartNotNil applies the NotNil predicate on the "budget_window_start" field.
+func BudgetWindowStartNotNil() predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotNull(FieldBudgetWindowStart))
+}
+
+// BudgetUsageUsdEQ applies the EQ predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdEQ(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldEQ(FieldBudgetUsageUsd, v))
+}
+
+// BudgetUsageUsdNEQ applies the NEQ predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdNEQ(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNEQ(FieldBudgetUsageUsd, v))
+}
+
+// BudgetUsageUsdIn applies the In predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdIn(vs ...float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldIn(FieldBudgetUsageUsd, vs...))
+}
+
+// BudgetUsageUsdNotIn applies the NotIn predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdNotIn(vs ...float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldNotIn(FieldBudgetUsageUsd, vs...))
+}
+
+// BudgetUsageUsdGT applies the GT predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdGT(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGT(FieldBudgetUsageUsd, v))
+}
+
+// BudgetUsageUsdGTE applies the GTE predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdGTE(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldGTE(FieldBudgetUsageUsd, v))
+}
+
+// BudgetUsageUsdLT applies the LT predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdLT(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLT(FieldBudgetUsageUsd, v))
+}
+
+// BudgetUsageUsdLTE applies the LTE predicate on the "budget_usage_usd" field.
+func BudgetUsageUsdLTE(v float64) predicate.UserSubscription {
+	return predicate.UserSubscription(sql.FieldLTE(FieldBudgetUsageUsd, v))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.

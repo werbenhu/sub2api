@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 )
@@ -271,4 +272,27 @@ func TestAdminResetQuota_ReturnsRefreshedSub(t *testing.T) {
 	// 服务应返回第二次 GetByID 的刷新值而非初始的 99.9
 	require.Equal(t, float64(0), result.DailyUsageUSD, "返回的订阅应反映已归零的用量")
 	require.True(t, stub.resetDailyCalled)
+}
+
+func (r *resetQuotaUserSubRepoStub) GetByIDForUpdate(ctx context.Context, id int64) (*UserSubscription, error) {
+	return r.GetByID(ctx, id)
+}
+func (r *resetQuotaUserSubRepoStub) Update(_ context.Context, sub *UserSubscription) error {
+	cp := *sub
+	r.sub = &cp
+	return nil
+}
+func TestAdminResetQuota_RestoresBudgetWithoutMovingSchedule(t *testing.T) {
+	now := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	start := now.Add(-7 * time.Hour)
+	oldWindow := start
+	stub := &resetQuotaUserSubRepoStub{sub: &UserSubscription{ID: 1, UserID: 10, GroupID: 20, StartsAt: start, ExpiresAt: now.Add(24 * time.Hour), Budget: &domain.SubscriptionBudget{AmountUSD: 10, ResetPeriod: "hours", ResetHours: 6}, BudgetUsageUSD: 9, BudgetWindowStart: &oldWindow}}
+	svc := newResetQuotaSvc(stub)
+	svc.now = func() time.Time { return now }
+	result, err := svc.AdminResetQuota(context.Background(), 1, true, true, true)
+	require.NoError(t, err)
+	require.Zero(t, result.BudgetUsageUSD)
+	require.Equal(t, start.Add(6*time.Hour), *result.BudgetWindowStart)
+	require.Equal(t, start.Add(12*time.Hour), *result.Budget.NextReset(result.StartsAt, result.ExpiresAt, now))
+	require.False(t, stub.resetDailyCalled)
 }

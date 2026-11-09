@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"maps"
 	"strings"
 	"testing"
@@ -105,6 +106,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 	subscription := mustCreateSubscription(t, client, &service.UserSubscription{
 		UserID:  user.ID,
 		GroupID: group.ID,
+		Budget:  &domain.SubscriptionBudget{AmountUSD: 10, ResetPeriod: "hours", ResetHours: 6},
 	})
 
 	requestID := uuid.NewString()
@@ -128,6 +130,9 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 	var dailyUsage float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&dailyUsage))
 	require.InDelta(t, 2.5, dailyUsage, 0.000001)
+	var budgetUsage float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT budget_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&budgetUsage))
+	require.InDelta(t, 2.5, budgetUsage, 0.000001)
 }
 
 func TestUsageBillingRepositoryApply_RequestFingerprintConflict(t *testing.T) {

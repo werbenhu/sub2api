@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // SubscriptionPlanCreate is the builder for creating a SubscriptionPlan entity.
@@ -20,6 +21,12 @@ type SubscriptionPlanCreate struct {
 	mutation *SubscriptionPlanMutation
 	hooks    []Hook
 	conflict []sql.ConflictOption
+}
+
+// SetBudget sets the "budget" field.
+func (_c *SubscriptionPlanCreate) SetBudget(v *domain.SubscriptionBudget) *SubscriptionPlanCreate {
+	_c.mutation.SetBudget(v)
+	return _c
 }
 
 // SetGroupID sets the "group_id" field.
@@ -273,6 +280,11 @@ func (_c *SubscriptionPlanCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *SubscriptionPlanCreate) check() error {
+	if v, ok := _c.mutation.Budget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "budget", err: fmt.Errorf(`ent: validator failed for field "SubscriptionPlan.budget": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.GroupID(); !ok {
 		return &ValidationError{Name: "group_id", err: errors.New(`ent: missing required field "SubscriptionPlan.group_id"`)}
 	}
@@ -359,6 +371,10 @@ func (_c *SubscriptionPlanCreate) createSpec() (*SubscriptionPlan, *sqlgraph.Cre
 		_spec = sqlgraph.NewCreateSpec(subscriptionplan.Table, sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64))
 	)
 	_spec.OnConflict = _c.conflict
+	if value, ok := _c.mutation.Budget(); ok {
+		_spec.SetField(subscriptionplan.FieldBudget, field.TypeJSON, value)
+		_node.Budget = value
+	}
 	if value, ok := _c.mutation.GroupID(); ok {
 		_spec.SetField(subscriptionplan.FieldGroupID, field.TypeInt64, value)
 		_node.GroupID = value
@@ -422,7 +438,7 @@ func (_c *SubscriptionPlanCreate) createSpec() (*SubscriptionPlan, *sqlgraph.Cre
 // of the `INSERT` statement. For example:
 //
 //	client.SubscriptionPlan.Create().
-//		SetGroupID(v).
+//		SetBudget(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -431,7 +447,7 @@ func (_c *SubscriptionPlanCreate) createSpec() (*SubscriptionPlan, *sqlgraph.Cre
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.SubscriptionPlanUpsert) {
-//			SetGroupID(v+v).
+//			SetBudget(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *SubscriptionPlanCreate) OnConflict(opts ...sql.ConflictOption) *SubscriptionPlanUpsertOne {
@@ -466,6 +482,24 @@ type (
 		*sql.UpdateSet
 	}
 )
+
+// SetBudget sets the "budget" field.
+func (u *SubscriptionPlanUpsert) SetBudget(v *domain.SubscriptionBudget) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldBudget, v)
+	return u
+}
+
+// UpdateBudget sets the "budget" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdateBudget() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldBudget)
+	return u
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (u *SubscriptionPlanUpsert) ClearBudget() *SubscriptionPlanUpsert {
+	u.SetNull(subscriptionplan.FieldBudget)
+	return u
+}
 
 // SetGroupID sets the "group_id" field.
 func (u *SubscriptionPlanUpsert) SetGroupID(v int64) *SubscriptionPlanUpsert {
@@ -702,6 +736,27 @@ func (u *SubscriptionPlanUpsertOne) Update(set func(*SubscriptionPlanUpsert)) *S
 		set(&SubscriptionPlanUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetBudget sets the "budget" field.
+func (u *SubscriptionPlanUpsertOne) SetBudget(v *domain.SubscriptionBudget) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetBudget(v)
+	})
+}
+
+// UpdateBudget sets the "budget" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdateBudget() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateBudget()
+	})
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (u *SubscriptionPlanUpsertOne) ClearBudget() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearBudget()
+	})
 }
 
 // SetGroupID sets the "group_id" field.
@@ -1063,7 +1118,7 @@ func (_c *SubscriptionPlanCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.SubscriptionPlanUpsert) {
-//			SetGroupID(v+v).
+//			SetBudget(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *SubscriptionPlanCreateBulk) OnConflict(opts ...sql.ConflictOption) *SubscriptionPlanUpsertBulk {
@@ -1137,6 +1192,27 @@ func (u *SubscriptionPlanUpsertBulk) Update(set func(*SubscriptionPlanUpsert)) *
 		set(&SubscriptionPlanUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetBudget sets the "budget" field.
+func (u *SubscriptionPlanUpsertBulk) SetBudget(v *domain.SubscriptionBudget) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetBudget(v)
+	})
+}
+
+// UpdateBudget sets the "budget" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdateBudget() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateBudget()
+	})
+}
+
+// ClearBudget clears the value of the "budget" field.
+func (u *SubscriptionPlanUpsertBulk) ClearBudget() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearBudget()
+	})
 }
 
 // SetGroupID sets the "group_id" field.

@@ -2130,7 +2130,19 @@ export interface ChangePasswordRequest {
 
 // ==================== User Subscription Types ====================
 
+export interface SubscriptionBudget {
+  amount_usd: number
+  reset_period: 'hours' | 'daily' | 'weekly' | 'monthly' | 'custom' | 'none'
+  reset_hours?: number
+  reset_days?: number
+  reset_time: string
+  timezone: string
+}
 export interface UserSubscription {
+  budget?: SubscriptionBudget | null
+  budget_usage_usd?: number
+  budget_remaining_usd?: number | null
+  budget_reset_at?: string | null
   id: number
   user_id: number
   group_id: number
@@ -2151,6 +2163,8 @@ export interface UserSubscription {
 }
 
 export interface SubscriptionProgress {
+  budget?: SubscriptionBudget | null
+  allowance?: { limit_usd: number; used_usd: number; remaining_usd: number; percentage: number; resets_at: string; resets_in_seconds: number } | null
   subscription_id: number
   daily: {
     used: number

@@ -72,7 +72,8 @@
 
               <!-- Progress bars for limited subscriptions -->
               <template v-else>
-                <div v-if="subscription.group?.daily_limit_usd" class="flex items-center gap-2">
+                <SubscriptionBudgetUsage :subscription="subscription" />
+                <div v-if="!subscription.budget && subscription.group?.daily_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.daily')
                   }}</span>
@@ -100,7 +101,7 @@
                   </span>
                 </div>
 
-                <div v-if="subscription.group?.weekly_limit_usd" class="flex items-center gap-2">
+                <div v-if="!subscription.budget && subscription.group?.weekly_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.weekly')
                   }}</span>
@@ -128,7 +129,7 @@
                   </span>
                 </div>
 
-                <div v-if="subscription.group?.monthly_limit_usd" class="flex items-center gap-2">
+                <div v-if="!subscription.budget && subscription.group?.monthly_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.monthly')
                   }}</span>
@@ -178,6 +179,7 @@
 </template>
 
 <script setup lang="ts">
+import SubscriptionBudgetUsage from '@/components/subscription/SubscriptionBudgetUsage.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
@@ -209,6 +211,7 @@ const displaySubscriptions = computed(() => {
 })
 
 function getMaxUsagePercentage(sub: UserSubscription): number {
+  if (sub.budget) return ((sub.budget_usage_usd || 0) / sub.budget.amount_usd) * 100
   const percentages: number[] = []
   if (sub.group?.daily_limit_usd) {
     percentages.push(((sub.daily_usage_usd || 0) / sub.group.daily_limit_usd) * 100)
@@ -224,6 +227,7 @@ function getMaxUsagePercentage(sub: UserSubscription): number {
 
 function isUnlimited(sub: UserSubscription): boolean {
   return (
+    !sub.budget &&
     !sub.group?.daily_limit_usd &&
     !sub.group?.weekly_limit_usd &&
     !sub.group?.monthly_limit_usd

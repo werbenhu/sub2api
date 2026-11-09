@@ -124,6 +124,16 @@ func UpdatedAt(v time.Time) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldEQ(FieldUpdatedAt, v))
 }
 
+// BudgetIsNil applies the IsNil predicate on the "budget" field.
+func BudgetIsNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIsNull(FieldBudget))
+}
+
+// BudgetNotNil applies the NotNil predicate on the "budget" field.
+func BudgetNotNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotNull(FieldBudget))
+}
+
 // GroupIDEQ applies the EQ predicate on the "group_id" field.
 func GroupIDEQ(v int64) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldEQ(FieldGroupID, v))

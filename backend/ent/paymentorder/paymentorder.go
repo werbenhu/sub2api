@@ -50,6 +50,8 @@ const (
 	FieldPlanID = "plan_id"
 	// FieldSubscriptionGroupID holds the string denoting the subscription_group_id field in the database.
 	FieldSubscriptionGroupID = "subscription_group_id"
+	// FieldSubscriptionBudget holds the string denoting the subscription_budget field in the database.
+	FieldSubscriptionBudget = "subscription_budget"
 	// FieldSubscriptionDays holds the string denoting the subscription_days field in the database.
 	FieldSubscriptionDays = "subscription_days"
 	// FieldProviderInstanceID holds the string denoting the provider_instance_id field in the database.
@@ -128,6 +130,7 @@ var Columns = []string{
 	FieldOrderType,
 	FieldPlanID,
 	FieldSubscriptionGroupID,
+	FieldSubscriptionBudget,
 	FieldSubscriptionDays,
 	FieldProviderInstanceID,
 	FieldProviderKey,

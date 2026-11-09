@@ -1,4 +1,37 @@
 export default {
+  subscriptionBudget: {
+      "title": "订阅金额额度",
+      "hint": "每个周期恢复到设定金额，剩余额度不结转；总有效期独立控制。启用后替代分组的日／周／月金额限制。",
+      "legacy": "未启用时沿用分组的日／周／月限额。",
+      "amount": "每周期金额（USD）",
+      "period": "重置周期",
+      "hours": "每 N 小时",
+      "daily": "每天",
+      "weekly": "每周",
+      "monthly": "每月",
+      "custom": "每 N 天",
+      "none": "不重置（整个有效期共用）",
+      "hoursLabel": "间隔小时数",
+      "daysLabel": "间隔天数",
+      "time": "重置时刻",
+      "timezone": "时区（IANA）",
+      "hoursHint": "从订阅开通时刻起，每隔指定小时数恢复额度。",
+      "dailyHint": "每天在所选时区的指定时刻重置。",
+      "weeklyHint": "每周一在所选时区的指定时刻重置。",
+      "monthlyHint": "每月 1 日在所选时区的指定时刻重置。",
+      "customHint": "按开通日和重置时刻对齐，每隔指定天数重置。",
+      "noneHint": "金额在整个订阅有效期内共用，不自动恢复。",
+      "remaining": "剩余 ${amount}",
+      "nextReset": "下次重置：{time}",
+      "edit": "调整额度",
+      "resetUsage": "同时清零本周期已用金额",
+      "saved": "订阅额度已更新"
+  },
+  accountPricing: {
+      "title": "账号模型价格",
+      "add": "添加模型价格",
+      "hint": "选择模型后自动填入官方价格，可修改。账号自定义价优先于分组／渠道价格，用于用户扣费，再应用分组倍率；删除所有条目后恢复原定价。"
+  },
   common: {
     loading: '加载中...',
     submitting: '提交中...',

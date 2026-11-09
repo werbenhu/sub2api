@@ -644,6 +644,7 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 				UserID:       o.UserID,
 				GroupID:      groupID,
 				ValidityDays: days,
+				Budget:       cloneSubscriptionBudget(o.SubscriptionBudget),
 				AssignedBy:   0,
 				Notes:        orderNote,
 			}, true); err != nil {

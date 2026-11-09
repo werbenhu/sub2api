@@ -716,6 +716,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	apiKey := input.APIKey
 	user := input.User
 	account := input.Account
+	ctx = withAccountModelPricing(ctx, account)
 	subscription := input.Subscription
 	ApplyForwardImageBillingResolution(result)
 	logServiceTierBillingDowngrade("service.gateway", account, result.RequestID, ApplyForwardServiceTierBillingResolution(result))
@@ -919,6 +920,7 @@ func (s *GatewayService) CacheStoragePriced(ctx context.Context, input *RecordUs
 
 // QuoteUsageCost 按与 RecordUsage 相同的倍率、计费模型与定价计算 input.Result 的应付金额（倍率后 USD），不记录也不扣费。
 func (s *GatewayService) QuoteUsageCost(ctx context.Context, input *RecordUsageInput) float64 {
+	ctx = withAccountModelPricing(ctx, input.Account)
 	user := input.User
 	if user == nil {
 		user = input.APIKey.User
@@ -1088,7 +1090,7 @@ func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel
 	}
 	gid := apiKey.Group.ID
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
-	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
+	if resolved.Source == PricingSourceAccount || resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
 		return resolved
 	}
 	return nil
@@ -1107,7 +1109,7 @@ func (s *GatewayService) calculateImageCost(
 	resolved := s.resolveChannelPricing(ctx, billingModel, apiKey)
 	// 分组定价只有按次/图片模式才能按张结算。token 模式缺少 token 输入时会算出
 	// $0，必须回落到分组图片价或默认图片价，避免开关开启后图片完全免费。
-	if resolved != nil && resolved.Source == PricingSourceGroup &&
+	if resolved != nil && (resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceAccount) &&
 		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
 		gid := apiKey.Group.ID
 		cost, err := s.billingService.CalculateCostUnified(CostInput{

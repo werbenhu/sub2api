@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // PaymentOrderCreate is the builder for creating a PaymentOrder entity.
@@ -208,6 +209,12 @@ func (_c *PaymentOrderCreate) SetNillableSubscriptionGroupID(v *int64) *PaymentO
 	if v != nil {
 		_c.SetSubscriptionGroupID(*v)
 	}
+	return _c
+}
+
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (_c *PaymentOrderCreate) SetSubscriptionBudget(v *domain.SubscriptionBudget) *PaymentOrderCreate {
+	_c.mutation.SetSubscriptionBudget(v)
 	return _c
 }
 
@@ -638,6 +645,11 @@ func (_c *PaymentOrderCreate) check() error {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.SubscriptionBudget(); ok {
+		if err := v.Validate(); err != nil {
+			return &ValidationError{Name: "subscription_budget", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.subscription_budget": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.ProviderInstanceID(); ok {
 		if err := paymentorder.ProviderInstanceIDValidator(v); err != nil {
 			return &ValidationError{Name: "provider_instance_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.provider_instance_id": %w`, err)}
@@ -789,6 +801,10 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)
 		_node.SubscriptionGroupID = &value
+	}
+	if value, ok := _c.mutation.SubscriptionBudget(); ok {
+		_spec.SetField(paymentorder.FieldSubscriptionBudget, field.TypeJSON, value)
+		_node.SubscriptionBudget = value
 	}
 	if value, ok := _c.mutation.SubscriptionDays(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionDays, field.TypeInt, value)
@@ -1232,6 +1248,24 @@ func (u *PaymentOrderUpsert) AddSubscriptionGroupID(v int64) *PaymentOrderUpsert
 // ClearSubscriptionGroupID clears the value of the "subscription_group_id" field.
 func (u *PaymentOrderUpsert) ClearSubscriptionGroupID() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldSubscriptionGroupID)
+	return u
+}
+
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (u *PaymentOrderUpsert) SetSubscriptionBudget(v *domain.SubscriptionBudget) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldSubscriptionBudget, v)
+	return u
+}
+
+// UpdateSubscriptionBudget sets the "subscription_budget" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateSubscriptionBudget() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldSubscriptionBudget)
+	return u
+}
+
+// ClearSubscriptionBudget clears the value of the "subscription_budget" field.
+func (u *PaymentOrderUpsert) ClearSubscriptionBudget() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldSubscriptionBudget)
 	return u
 }
 
@@ -1961,6 +1995,27 @@ func (u *PaymentOrderUpsertOne) UpdateSubscriptionGroupID() *PaymentOrderUpsertO
 func (u *PaymentOrderUpsertOne) ClearSubscriptionGroupID() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearSubscriptionGroupID()
+	})
+}
+
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (u *PaymentOrderUpsertOne) SetSubscriptionBudget(v *domain.SubscriptionBudget) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetSubscriptionBudget(v)
+	})
+}
+
+// UpdateSubscriptionBudget sets the "subscription_budget" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateSubscriptionBudget() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateSubscriptionBudget()
+	})
+}
+
+// ClearSubscriptionBudget clears the value of the "subscription_budget" field.
+func (u *PaymentOrderUpsertOne) ClearSubscriptionBudget() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearSubscriptionBudget()
 	})
 }
 
@@ -2914,6 +2969,27 @@ func (u *PaymentOrderUpsertBulk) UpdateSubscriptionGroupID() *PaymentOrderUpsert
 func (u *PaymentOrderUpsertBulk) ClearSubscriptionGroupID() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearSubscriptionGroupID()
+	})
+}
+
+// SetSubscriptionBudget sets the "subscription_budget" field.
+func (u *PaymentOrderUpsertBulk) SetSubscriptionBudget(v *domain.SubscriptionBudget) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetSubscriptionBudget(v)
+	})
+}
+
+// UpdateSubscriptionBudget sets the "subscription_budget" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateSubscriptionBudget() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateSubscriptionBudget()
+	})
+}
+
+// ClearSubscriptionBudget clears the value of the "subscription_budget" field.
+func (u *PaymentOrderUpsertBulk) ClearSubscriptionBudget() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearSubscriptionBudget()
 	})
 }
 
