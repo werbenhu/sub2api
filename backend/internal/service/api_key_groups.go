@@ -80,21 +80,21 @@ func (s *APIKeyService) ResolveGroupForModel(ctx context.Context, apiKey *APIKey
 		if !s.userCanUseGroup(ctx, apiKey.User, apiKey.UserID, group) {
 			continue
 		}
-		if fallback == nil {
-			fallback = group
-		}
-		if group.Platform == PlatformComposite && compositeFallback == nil {
-			compositeFallback = group
-		}
-		if s.compositeResolver == nil {
-			continue
-		}
 		decision, err := s.compositeResolver.ResolvePreview(ctx, groupID, model, endpoint)
 		if err != nil {
 			return err
 		}
 		if decision.OAuthAmbiguous() {
 			return infraerrors.BadRequest("COMPOSITE_ROUTE_CONFIG_INVALID", decision.AmbiguousMessage())
+		}
+		if decision.Matched && !group.SupportsPlatform(decision.TargetPlatform) {
+			continue
+		}
+		if fallback == nil {
+			fallback = group
+		}
+		if group.Platform == PlatformComposite && compositeFallback == nil {
+			compositeFallback = group
 		}
 		if decision.Matched && decision.Source != CompositeRouteSourceDetector {
 			apiKey.GroupID = int64Pointer(groupID)
@@ -116,8 +116,9 @@ func (s *APIKeyService) ResolveGroupForModel(ctx context.Context, apiKey *APIKey
 	if fallback != nil {
 		apiKey.GroupID = int64Pointer(fallback.ID)
 		apiKey.Group = fallback
+		return nil
 	}
-	return nil
+	return infraerrors.BadRequest("GROUP_PLATFORM_NOT_ALLOWED", "no accessible group supports the requested model platform")
 }
 
 func (s *APIKeyService) userCanUseGroup(ctx context.Context, user *User, userID int64, group *Group) bool {

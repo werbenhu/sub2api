@@ -241,6 +241,7 @@ type CreateGroupInput struct {
 	Description               string
 	I18n                      GroupI18n // 名称与描述的界面语言译文
 	Platform                  string
+	Platforms                 []string
 	RateMultiplier            float64
 	IsExclusive               bool
 	SubscriptionType          string   // standard/subscription
@@ -323,7 +324,8 @@ type UpdateGroupInput struct {
 	Description               *string
 	I18n                      *GroupI18n // nil 表示不修改；非 nil 整体替换
 	Platform                  string
-	RateMultiplier            *float64 // 使用指针以支持设置为0
+	Platforms                 *[]string // nil 表示不修改；空数组表示多平台分组允许全部平台
+	RateMultiplier            *float64  // 使用指针以支持设置为0
 	IsExclusive               *bool
 	Status                    string
 	SubscriptionType          string   // standard/subscription

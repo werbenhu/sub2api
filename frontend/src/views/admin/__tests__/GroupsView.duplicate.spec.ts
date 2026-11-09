@@ -303,6 +303,51 @@ describe('GroupsView duplicate action', () => {
     wrapper.unmount()
   })
 
+  it('preserves unrestricted legacy composite platforms when saving other settings', async () => {
+    listGroups.mockResolvedValueOnce({ items: [{ ...sourceGroup, platform: 'composite', platforms: [] }], total: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('admin.groups.platformAllHint')
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({ platform: 'composite', platforms: [] }))
+    wrapper.unmount()
+  })
+
+  it('stores an explicit restriction when legacy composite platforms are changed', async () => {
+    listGroups.mockResolvedValueOnce({ items: [{ ...sourceGroup, platform: 'composite', platforms: [] }], total: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    await flushPromises()
+    const select = wrapper.findAllComponents({ name: 'Select' }).find(item => item.attributes('data-tour') === 'group-form-platform')!
+    select.vm.$emit('update:modelValue', ['openai', 'gemini'])
+    select.vm.$emit('change', ['openai', 'gemini'])
+    await flushPromises()
+    await wrapper.get('#edit-group-form').trigger('submit')
+    await flushPromises()
+    expect(updateGroup).toHaveBeenCalledWith(42, expect.objectContaining({ platform: 'composite', platforms: ['openai', 'gemini'] }))
+    wrapper.unmount()
+  })
+
+  it('uses a single platform selector in simple mode', async () => {
+    authState.isSimpleMode = true
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'common.edit')!.trigger('click')
+    await flushPromises()
+    const select = wrapper.findAllComponents({ name: 'Select' }).find(item => item.attributes('data-tour') === 'group-form-platform')!
+    expect(select.props('multiple')).toBeFalsy()
+    expect(select.props('modelValue')).toBe('openai')
+    select.vm.$emit('update:modelValue', 'gemini')
+    select.vm.$emit('change', 'gemini')
+    await flushPromises()
+    expect(select.props('modelValue')).toBe('gemini')
+    wrapper.unmount()
+  })
+
   it('shows the standardized API message when updating a group fails', async () => {
     updateGroup.mockRejectedValueOnce({
       status: 409,

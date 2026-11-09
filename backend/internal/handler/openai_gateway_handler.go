@@ -2627,6 +2627,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			return
 		}
 		if decision.Matched {
+			if err := apiKey.Group.ValidateTargetPlatform(decision.TargetPlatform); err != nil {
+				closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, pkgerrors.Message(err))
+				return
+			}
 			c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
 			wsRouteModel = decision.UpstreamModel
 		}

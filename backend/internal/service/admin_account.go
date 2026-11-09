@@ -535,6 +535,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	if err := s.ValidateAccountGroupBindings(ctx, groupIDs); err != nil {
 		return nil, err
 	}
+	if err := validateAccountGroupPlatforms(ctx, s.groupRepo, account, groupIDs); err != nil {
+		return nil, err
+	}
 	if err := s.accountRepo.Create(ctx, account); err != nil {
 		return nil, err
 	}
@@ -859,6 +862,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		if err := s.ValidateAccountGroupBindings(ctx, *input.GroupIDs); err != nil {
 			return nil, err
 		}
+		if err := validateAccountGroupPlatforms(ctx, s.groupRepo, account, *input.GroupIDs); err != nil {
+			return nil, err
+		}
 
 		// 检查混合渠道风险（除非用户已确认）
 		if !input.SkipMixedChannelCheck {
@@ -1007,7 +1013,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
 	var cachedTargets []*Account
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || openAISettings.any() || input.ProbeEnabled != nil || input.RateMultiplier != nil {
+	if len(input.Credentials) > 0 || input.ProxyID != nil || input.GroupIDs != nil || openAISettings.any() || input.ProbeEnabled != nil || input.RateMultiplier != nil {
 		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
@@ -1196,7 +1202,22 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		entry := BulkUpdateAccountResult{AccountID: accountID}
 
 		if input.GroupIDs != nil {
-			if err := s.accountRepo.BindGroups(ctx, accountID, *input.GroupIDs); err != nil {
+			account := targetsByID[accountID]
+			var err error
+			if account == nil {
+				err = ErrAccountNotFound
+			} else {
+				// Bulk extra updates merge into stored JSON before bindings are applied.
+				nextAccount := *account
+				if mixed, changed := input.Extra["mixed_scheduling"]; changed {
+					nextAccount.Extra = map[string]any{"mixed_scheduling": mixed}
+				}
+				err = validateAccountGroupPlatforms(ctx, s.groupRepo, &nextAccount, *input.GroupIDs)
+			}
+			if err == nil {
+				err = s.accountRepo.BindGroups(ctx, accountID, *input.GroupIDs)
+			}
+			if err != nil {
 				entry.Success = false
 				entry.Error = err.Error()
 				result.Failed++

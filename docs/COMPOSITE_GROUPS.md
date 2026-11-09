@@ -3,7 +3,14 @@
 Multi-platform groups let one API key serve models from several account
 platforms. The internal platform value remains `composite` for compatibility;
 there is no additional group hierarchy and no need to create separate concrete
-provider groups first.
+provider groups first. The platform field is a multi-select: choosing one
+concrete platform creates a regular group, while choosing several creates a
+multi-platform group. The selected platforms are stored in `platforms` and
+restrict account bindings and route targets. Legacy multi-platform groups with
+an empty `platforms` list continue to allow every concrete platform.
+Editing other settings preserves that open list, including support for future
+platforms. Changing the platform selection explicitly restricts the group to
+the selected platforms. Simple mode only allows single-platform groups.
 
 All groups use subscription quota. Administrators assign or renew subscriptions
 directly. Wallet deduction, online payment, redemption codes, and referral

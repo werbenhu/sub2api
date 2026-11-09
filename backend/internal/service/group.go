@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
@@ -21,6 +22,7 @@ type Group struct {
 	Description    string
 	I18n           GroupI18n // 名称与描述的界面语言译文；缺失的语言沿用 Name/Description
 	Platform       string
+	Platforms      []string // composite 分组允许的具体平台；空表示全部平台
 	RateMultiplier float64
 	// 高峰时段倍率：peak_rate_enabled 为 true 且当前时刻处于 [PeakStart, PeakEnd) 时，
 	// token 计费倍率额外乘以 PeakRateMultiplier。详见 PeakMultiplierAt。
@@ -151,6 +153,34 @@ func IsGroupBindableInSimpleMode(group *Group) bool {
 
 func (g *Group) IsActive() bool {
 	return g.Status == StatusActive
+}
+
+// SupportsPlatform reports whether a request may target platform in the group.
+// An empty Platforms list keeps legacy composite groups open to every platform.
+func (g *Group) SupportsPlatform(platform string) bool {
+	if g == nil {
+		return false
+	}
+	if g.Platform != PlatformComposite {
+		return g.Platform == platform
+	}
+	if len(g.Platforms) == 0 {
+		return isConcreteRequestPlatform(platform)
+	}
+	for _, allowed := range g.Platforms {
+		if allowed == platform {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidateTargetPlatform applies composite restrictions before dispatching a request.
+func (g *Group) ValidateTargetPlatform(platform string) error {
+	if g != nil && g.Platform == PlatformComposite && !g.SupportsPlatform(platform) {
+		return infraerrors.BadRequest("COMPOSITE_ROUTE_PLATFORM_NOT_SELECTED", "target_platform is not selected in this group")
+	}
+	return nil
 }
 
 func (g *Group) IsSubscriptionType() bool {

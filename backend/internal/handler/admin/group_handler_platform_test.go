@@ -86,3 +86,18 @@ func TestCompositeRouteTargetPlatform_RejectsComposite(t *testing.T) {
 	var req CompositeRouteRequest
 	require.Error(t, bindGroupPlatformJSON(t, &req, `{"public_model":"m","target_platform":"composite"}`))
 }
+
+func TestGroupPlatformBinding_Platforms(t *testing.T) {
+	var createReq CreateGroupRequest
+	require.NoError(t, bindGroupPlatformJSON(t, &createReq, `{"name":"g","platform":"composite","platforms":["openai","gemini"]}`))
+	require.Equal(t, []string{"openai", "gemini"}, createReq.Platforms)
+
+	var updateReq UpdateGroupRequest
+	require.NoError(t, bindGroupPlatformJSON(t, &updateReq, `{"platform":"composite","platforms":["openai","gemini"]}`))
+	require.NotNil(t, updateReq.Platforms)
+	require.Equal(t, []string{"openai", "gemini"}, *updateReq.Platforms)
+
+	var legacyReq UpdateGroupRequest
+	require.NoError(t, bindGroupPlatformJSON(t, &legacyReq, `{"name":"legacy"}`))
+	require.Nil(t, legacyReq.Platforms)
+}

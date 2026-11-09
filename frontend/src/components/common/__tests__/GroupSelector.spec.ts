@@ -35,6 +35,22 @@ describe('GroupSelector simple-mode binding policy', () => {
     expect(wrapper.text()).toContain('Composite')
   })
 
+  it('only offers composite groups that allow the account platform', () => {
+    const wrapper = mount(GroupSelector, {
+      props: {
+        modelValue: [], platform: 'gemini', groups: [
+          { ...groups[1], id: 3, name: 'Restricted', platforms: ['openai', 'grok'] },
+          { ...groups[1], id: 4, name: 'Allowed', platforms: ['openai', 'gemini'] },
+          { ...groups[1], id: 5, name: 'Legacy', platforms: [] },
+        ],
+      },
+      global: { stubs: { GroupBadge: { props: ['name'], template: '<span>{{ name }}</span>' }, Icon: true } },
+    })
+    expect(wrapper.text()).not.toContain('Restricted')
+    expect(wrapper.text()).toContain('Allowed')
+    expect(wrapper.text()).toContain('Legacy')
+  })
+
   it('cleans hidden historical composite IDs while preserving visible selections', () => {
     authState.isSimpleMode = true
     const wrapper = mountSelector([1, 2])

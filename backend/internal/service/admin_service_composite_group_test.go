@@ -217,3 +217,126 @@ func TestAdminService_CNProviderModelsListCandidatesKeepClaudeDefaults(t *testin
 		require.Equal(t, want, defaultModelsListCandidateIDs(platform), "platform=%s", platform)
 	}
 }
+
+func TestGroupSupportsSelectedPlatforms(t *testing.T) {
+	legacy := &Group{Platform: PlatformComposite}
+	require.True(t, legacy.SupportsPlatform(PlatformOpenAI))
+	require.True(t, legacy.SupportsPlatform(PlatformGemini))
+
+	selected := &Group{Platform: PlatformComposite, Platforms: []string{PlatformOpenAI, PlatformGemini}}
+	require.True(t, selected.SupportsPlatform(PlatformOpenAI))
+	require.True(t, selected.SupportsPlatform(PlatformGemini))
+	require.False(t, selected.SupportsPlatform(PlatformGrok))
+
+	single := &Group{Platform: PlatformOpenAI}
+	require.True(t, single.SupportsPlatform(PlatformOpenAI))
+	require.False(t, single.SupportsPlatform(PlatformGemini))
+}
+
+func TestAdminServiceCreateGroupPersistsSelectedPlatforms(t *testing.T) {
+	repo := &groupRepoStubForAdmin{createID: 100}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "OpenAI and Gemini",
+		Platform:       PlatformComposite,
+		Platforms:      []string{PlatformOpenAI, PlatformGemini, PlatformOpenAI},
+		RateMultiplier: 1,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, PlatformComposite, group.Platform)
+	require.Equal(t, []string{PlatformOpenAI, PlatformGemini}, group.Platforms)
+	require.Equal(t, group.Platforms, repo.created.Platforms)
+}
+
+func TestAdminServiceCreateGroupRejectsSinglePlatformSelectionMismatch(t *testing.T) {
+	repo := &groupRepoStubForAdmin{createID: 100}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "Mismatch",
+		Platform:       PlatformOpenAI,
+		Platforms:      []string{PlatformOpenAI, PlatformGemini},
+		RateMultiplier: 1,
+	})
+
+	require.Error(t, err)
+	requireApplicationErrorReason(t, err, "INVALID_GROUP_PLATFORM")
+	require.Nil(t, repo.created)
+}
+
+func TestAdminServiceCreateAccountRejectsUnselectedCompositePlatform(t *testing.T) {
+	accountRepo := &accountRepoStubForBulkUpdate{createID: 7}
+	groupRepo := &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
+		99: {ID: 99, Name: "selected", Platform: PlatformComposite, Platforms: []string{PlatformOpenAI, PlatformGemini}},
+	}}
+	svc := &adminServiceImpl{accountRepo: accountRepo, groupRepo: groupRepo}
+
+	_, err := svc.CreateAccount(context.Background(), &CreateAccountInput{
+		Name:                  "Grok account",
+		Platform:              PlatformGrok,
+		Type:                  AccountTypeAPIKey,
+		Concurrency:           1,
+		GroupIDs:              []int64{99},
+		SkipDefaultGroupBind:  true,
+		SkipMixedChannelCheck: true,
+	})
+
+	require.Error(t, err)
+	requireApplicationErrorReason(t, err, "GROUP_PLATFORM_ACCOUNT_MISMATCH")
+	require.Nil(t, accountRepo.createAccount)
+}
+
+func TestAdminServiceUpdateGroupRejectsRemovingBoundAccountPlatform(t *testing.T) {
+	accountRepo := &accountRepoStubForBulkUpdate{listByGroupData: map[int64][]Account{
+		99: {{ID: 1, Platform: PlatformOpenAI}, {ID: 2, Platform: PlatformGemini}},
+	}}
+	groupRepo := &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
+		99: {ID: 99, Platform: PlatformComposite, Platforms: []string{PlatformOpenAI, PlatformGemini}, RateMultiplier: 1},
+	}}
+	svc := &adminServiceImpl{accountRepo: accountRepo, groupRepo: groupRepo}
+	platforms := []string{PlatformOpenAI}
+
+	_, err := svc.UpdateGroup(context.Background(), 99, &UpdateGroupInput{Platforms: &platforms})
+
+	require.Error(t, err)
+	requireApplicationErrorReason(t, err, "GROUP_PLATFORM_ACCOUNT_MISMATCH")
+	require.Nil(t, groupRepo.updated)
+}
+
+func TestAdminServiceCreateCompositeRouteRejectsUnselectedPlatform(t *testing.T) {
+	groupRepo := &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
+		7: {ID: 7, Platform: PlatformComposite, Platforms: []string{PlatformOpenAI}},
+	}}
+	routeRepo := &compositeRouteRepoStubForAdmin{nextID: 1}
+	svc := &adminServiceImpl{groupRepo: groupRepo, compositeRouteRepo: routeRepo}
+
+	_, err := svc.CreateCompositeRoute(context.Background(), 7, CompositeRouteInput{
+		PublicModel:    "gemini-2.5-flash",
+		TargetPlatform: PlatformGemini,
+		Endpoint:       CompositeRouteEndpointGemini,
+		Enabled:        true,
+	})
+
+	require.Error(t, err)
+	requireApplicationErrorReason(t, err, "COMPOSITE_ROUTE_PLATFORM_NOT_SELECTED")
+	require.Nil(t, routeRepo.created)
+}
+
+func TestAdminServiceCompositeModelsListCandidatesRespectSelectedPlatforms(t *testing.T) {
+	accountRepo := &accountRepoStubForCompositeModelsList{accounts: []Account{
+		{ID: 1, Platform: PlatformOpenAI, Credentials: map[string]any{"model_mapping": map[string]any{"gpt-custom": "gpt-5"}}},
+		{ID: 2, Platform: PlatformGemini, Credentials: map[string]any{"model_mapping": map[string]any{"gemini-custom": "gemini-2.5-flash"}}},
+	}}
+	groupRepo := &groupRepoStubForAdmin{getByIDByID: map[int64]*Group{
+		99: {ID: 99, Platform: PlatformComposite, Platforms: []string{PlatformOpenAI}},
+	}}
+	svc := &adminServiceImpl{accountRepo: accountRepo, groupRepo: groupRepo}
+
+	candidates, err := svc.GetGroupModelsListCandidates(context.Background(), 99, PlatformComposite)
+
+	require.NoError(t, err)
+	require.Contains(t, candidates, "gpt-custom")
+	require.NotContains(t, candidates, "gemini-custom")
+}

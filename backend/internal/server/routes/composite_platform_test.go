@@ -83,6 +83,33 @@ func TestCompositeTargetPlatformMiddlewareResolvesModelAndRestoresBody(t *testin
 	require.Equal(t, http.StatusNoContent, w.Code)
 }
 
+func TestCompositeTargetPlatformMiddlewareRejectsUnselectedPlatform(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, gemini := range []bool{false, true} {
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+				Group: &service.Group{ID: 1, Platform: service.PlatformComposite, Platforms: []string{service.PlatformAnthropic, service.PlatformAntigravity}},
+			})
+		})
+		path := "/"
+		if gemini {
+			path = "/v1beta/models/gemini-2.5-flash:generateContent"
+			router.Use(compositeGeminiTargetPlatformMiddleware(nil))
+			router.POST("/v1beta/models/*modelAction", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		} else {
+			router.Use(compositeTargetPlatformMiddleware(nil))
+			router.POST(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		}
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gemini-2.5-flash"}`))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		require.Equal(t, http.StatusBadRequest, response.Code, "gemini=%v", gemini)
+		require.Contains(t, response.Body.String(), "not selected")
+	}
+}
+
 func TestCompositeTargetPlatformMiddlewareUsesExplicitRouteAndRewritesBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

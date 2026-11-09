@@ -232,6 +232,9 @@ func (s *AccountService) Create(ctx context.Context, req CreateAccountRequest) (
 		if err := s.validateGroupIDsExist(ctx, req.GroupIDs); err != nil {
 			return nil, err
 		}
+		if err := validateAccountGroupPlatforms(ctx, s.groupRepo, &Account{Platform: req.Platform, Extra: req.Extra}, req.GroupIDs); err != nil {
+			return nil, err
+		}
 	}
 
 	// 创建账号
@@ -374,6 +377,9 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 	// 先验证分组是否存在（在任何写操作之前）
 	if req.GroupIDs != nil {
 		if err := s.validateGroupIDsExist(ctx, *req.GroupIDs); err != nil {
+			return nil, err
+		}
+		if err := validateAccountGroupPlatforms(ctx, s.groupRepo, account, *req.GroupIDs); err != nil {
 			return nil, err
 		}
 	}

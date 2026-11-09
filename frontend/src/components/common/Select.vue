@@ -55,6 +55,7 @@
           :class="[instanceId]"
           :style="dropdownStyle"
           role="listbox"
+          :aria-multiselectable="multiple || undefined"
           tabindex="-1"
           @click.stop
           @mousedown.stop
@@ -93,6 +94,13 @@
               ]"
             >
               <slot name="option" :option="option" :selected="isSelected(option)">
+                <span
+                  v-if="multiple"
+                  class="select-checkbox"
+                  :class="isSelected(option) && 'select-checkbox-selected'"
+                >
+                  <Icon v-if="isSelected(option)" name="check" size="xs" :stroke-width="2.5" />
+                </span>
                 <Icon
                   v-if="option._creatable"
                   name="search"
@@ -101,7 +109,7 @@
                 />
                 <span class="select-option-label" :class="option._creatable && 'italic text-gray-500 dark:text-dark-300'">{{ getOptionLabel(option) }}</span>
                 <Icon
-                  v-if="isSelected(option)"
+                  v-if="!multiple && isSelected(option)"
                   name="check"
                   size="sm"
                   class="text-primary-500"
@@ -121,7 +129,16 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script lang="ts">
+export interface SelectOption {
+  value: string | number | boolean | null
+  label: string
+  disabled?: boolean
+  [key: string]: unknown
+}
+</script>
+
+<script setup lang="ts" generic="M extends boolean = false">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
@@ -131,16 +148,12 @@ const { t } = useI18n()
 // Instance ID for unique click-outside detection
 const instanceId = `select-${Math.random().toString(36).substring(2, 9)}`
 
-export interface SelectOption {
-  value: string | number | boolean | null
-  label: string
-  disabled?: boolean
-  [key: string]: unknown
-}
+type SelectValue = string | number | boolean | null
 
-interface Props {
-  modelValue: string | number | boolean | null | undefined
+interface Props<M extends boolean = false> {
+  modelValue: M extends true ? SelectValue[] : SelectValue | undefined
   options: SelectOption[] | Array<Record<string, unknown>>
+  multiple?: M
   placeholder?: string
   disabled?: boolean
   error?: boolean
@@ -161,13 +174,13 @@ interface Props {
   loading?: boolean
 }
 
-interface Emits {
-  (e: 'update:modelValue', value: string | number | boolean | null): void
-  (e: 'change', value: string | number | boolean | null, option: SelectOption | null): void
+interface Emits<M extends boolean = false> {
+  (e: 'update:modelValue', value: M extends true ? SelectValue[] : SelectValue): void
+  (e: 'change', value: M extends true ? SelectValue[] : SelectValue, option: SelectOption | null): void
   (e: 'search', query: string): void
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props<M>>(), {
   disabled: false,
   error: false,
   searchable: 'auto',
@@ -180,7 +193,7 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false
 })
 
-const emit = defineEmits<Emits>()
+const emit = defineEmits<Emits<M>>()
 
 const isOpen = ref(false)
 const searchQuery = ref('')
@@ -274,6 +287,13 @@ const selectedOption = computed(() => {
 })
 
 const selectedLabel = computed(() => {
+  if (props.multiple && Array.isArray(props.modelValue)) {
+    const selectedValues = props.modelValue
+    const labels = props.options
+      .filter((option) => selectedValues.includes(getOptionValue(option)))
+      .map(getOptionLabel)
+    return labels.length > 0 ? labels.join(', ') : placeholderText.value
+  }
   if (selectedOption.value) {
     return getOptionLabel(selectedOption.value)
   }
@@ -285,7 +305,9 @@ const selectedLabel = computed(() => {
 })
 
 const hasValue = computed(
-  () => props.modelValue !== null && props.modelValue !== undefined && props.modelValue !== ''
+  () => Array.isArray(props.modelValue)
+    ? props.modelValue.length > 0
+    : props.modelValue !== null && props.modelValue !== undefined && props.modelValue !== ''
 )
 
 const filteredOptions = computed(() => {
@@ -311,7 +333,10 @@ const filteredOptions = computed(() => {
 })
 
 const isSelected = (option: any): boolean => {
-  return getOptionValue(option) === props.modelValue
+  const value = getOptionValue(option)
+  return props.multiple && Array.isArray(props.modelValue)
+    ? props.modelValue.includes(value)
+    : value === props.modelValue
 }
 
 const findNextEnabledIndex = (startIndex: number): number => {
@@ -424,18 +449,33 @@ watch(searchQuery, (query) => {
   }, REMOTE_SEARCH_DEBOUNCE_MS)
 })
 
+const emitSelection = (value: SelectValue | SelectValue[], option: SelectOption | null) => {
+  // TypeScript cannot narrow a generic boolean from the runtime multiple prop.
+  // Keep the assertion on the payload; emit still checks event names and arguments.
+  const selection = value as M extends true ? SelectValue[] : SelectValue
+  emit('update:modelValue', selection)
+  emit('change', selection, option)
+}
+
 const selectOption = (option: any) => {
   const value = getOptionValue(option) ?? null
-  emit('update:modelValue', value)
-  emit('change', value, option)
+  if (props.multiple) {
+    const current: SelectValue[] = Array.isArray(props.modelValue) ? props.modelValue as SelectValue[] : []
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value]
+    emitSelection(next, option)
+    return
+  }
+  emitSelection(value, option)
   isOpen.value = false
   triggerRef.value?.focus()
 }
 
 const clearSelection = () => {
   if (props.disabled) return
-  emit('update:modelValue', null)
-  emit('change', null, null)
+  const value: SelectValue | SelectValue[] = props.multiple ? [] : null
+  emitSelection(value, null)
 }
 
 // Keyboards
@@ -619,6 +659,15 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-option-label {
   @apply flex-1 min-w-0 truncate text-left;
+}
+
+.select-dropdown-portal .select-checkbox {
+  @apply flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border;
+  @apply border-gray-300 text-white dark:border-dark-500;
+}
+
+.select-dropdown-portal .select-checkbox-selected {
+  @apply border-primary-500 bg-primary-500;
 }
 
 .select-dropdown-portal .select-empty {

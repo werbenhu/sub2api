@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
@@ -179,6 +180,9 @@ func (s *GatewayService) resolveCompositeRouteDecision(ctx context.Context, grou
 		return CompositeRouteDecision{}, false, nil
 	}
 	if platform, ok := ResolvedTargetPlatformFromContext(ctx); ok {
+		if !group.SupportsPlatform(platform) {
+			return CompositeRouteDecision{}, false, fmt.Errorf("%w: platform %s is not selected in group %d", ErrNoAvailableAccounts, platform, group.ID)
+		}
 		upstreamModel := requestedModel
 		if resolvedModel, modelOK := ResolvedUpstreamModelFromContext(ctx); modelOK {
 			upstreamModel = resolvedModel
@@ -200,6 +204,9 @@ func (s *GatewayService) resolveCompositeRouteDecision(ctx context.Context, grou
 	decision, err := s.compositeResolver.Resolve(ctx, group.ID, requestedModel, endpoint)
 	if err != nil {
 		return decision, false, err
+	}
+	if decision.Matched && !group.SupportsPlatform(decision.TargetPlatform) {
+		return CompositeRouteDecision{}, false, fmt.Errorf("%w: platform %s is not selected in group %d", ErrNoAvailableAccounts, decision.TargetPlatform, group.ID)
 	}
 	return decision, decision.Matched, nil
 }

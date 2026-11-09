@@ -976,6 +976,16 @@ func (s *GatewayService) resolvePlatform(ctx context.Context, groupID *int64, gr
 		return forcePlatform, true, nil
 	}
 	if platform, ok := ResolvedTargetPlatformFromContext(ctx); ok {
+		if group == nil && groupID != nil {
+			var err error
+			group, err = s.resolveGroupByID(ctx, *groupID)
+			if err != nil {
+				return "", false, err
+			}
+		}
+		if err := group.ValidateTargetPlatform(platform); err != nil {
+			return "", false, err
+		}
 		return platform, false, nil
 	}
 	if group != nil {

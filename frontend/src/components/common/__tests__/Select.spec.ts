@@ -217,3 +217,47 @@ describe('Select remote search', () => {
     expect(labels).toEqual(['Alpha account'])
   })
 })
+
+describe('Select multiple', () => {
+  it('toggles several options without closing the dropdown', async () => {
+    const wrapper = mount(Select, {
+      props: {
+        modelValue: ['openai'],
+        multiple: true,
+        options: [
+          { value: 'openai', label: 'OpenAI' },
+          { value: 'gemini', label: 'Gemini' },
+        ],
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+    await wrapper.get('button').trigger('click')
+    await nextTick()
+
+    const options = document.body.querySelectorAll<HTMLElement>('.select-option')
+    await options[1].click()
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['openai', 'gemini']])
+    expect(document.body.querySelector('.select-dropdown-portal')).not.toBeNull()
+
+    await wrapper.setProps({ modelValue: ['openai', 'gemini'] })
+    await options[0].click()
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['gemini']])
+    expect(document.body.querySelector('.select-dropdown-portal')).not.toBeNull()
+  })
+
+  it('shows all selected labels in the trigger', () => {
+    const wrapper = mount(Select, {
+      props: {
+        modelValue: ['openai', 'gemini'],
+        multiple: true,
+        options: [
+          { value: 'openai', label: 'OpenAI' },
+          { value: 'gemini', label: 'Gemini' },
+        ],
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+
+    expect(wrapper.get('.select-value').text()).toBe('OpenAI, Gemini')
+  })
+})

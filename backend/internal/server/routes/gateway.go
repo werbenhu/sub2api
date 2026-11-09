@@ -612,6 +612,10 @@ func compositeTargetPlatformMiddleware(resolver *service.CompositeRouteResolver)
 				return
 			}
 			if decision.Matched {
+				if err := apiKey.Group.ValidateTargetPlatform(decision.TargetPlatform); err != nil {
+					abortCompositeRouteResolution(c, err)
+					return
+				}
 				c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
 				if upstreamModel := strings.TrimSpace(decision.UpstreamModel); upstreamModel != "" && upstreamModel != model && gjson.ValidBytes(body) {
 					if _, modelPath := requestmodel.JSONModelPathForRoute(routePath, body); modelPath != "" {
@@ -649,10 +653,18 @@ func compositeGeminiTargetPlatformMiddleware(resolver *service.CompositeRouteRes
 					return
 				}
 				if decision.Matched {
+					if err := apiKey.Group.ValidateTargetPlatform(decision.TargetPlatform); err != nil {
+						abortCompositeRouteResolution(c, err)
+						return
+					}
 					c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
 				}
 			}
 			if _, resolved := service.ResolvedTargetPlatformFromContext(c.Request.Context()); !resolved {
+				if err := apiKey.Group.ValidateTargetPlatform(service.PlatformGemini); err != nil {
+					abortCompositeRouteResolution(c, err)
+					return
+				}
 				c.Request = c.Request.WithContext(service.WithResolvedTargetPlatform(c.Request.Context(), service.PlatformGemini))
 			}
 		}

@@ -64,6 +64,7 @@ type APIKeyAuthGroupSnapshot struct {
 	ID                              int64                         `json:"id"`
 	Name                            string                        `json:"name"`
 	Platform                        string                        `json:"platform"`
+	Platforms                       []string                      `json:"platforms"`
 	IsExclusive                     bool                          `json:"is_exclusive"`
 	Status                          string                        `json:"status"`
 	SubscriptionType                string                        `json:"subscription_type"`

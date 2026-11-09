@@ -84,8 +84,10 @@ func (s *adminServiceImpl) validateSimpleModeGroupAccess(group *Group) error {
 
 func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
 	platform = strings.TrimSpace(platform)
+	var group *Group
 	if id > 0 {
-		group, err := s.groupRepo.GetByIDLite(ctx, id)
+		var err error
+		group, err = s.groupRepo.GetByIDLite(ctx, id)
 		if err != nil {
 			return nil, err
 		}
@@ -98,6 +100,12 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 	}
 
 	candidates := defaultModelsListCandidateIDs(platform)
+	if platform == PlatformComposite && group != nil && len(group.Platforms) > 0 {
+		candidates = nil
+		for _, selectedPlatform := range group.Platforms {
+			candidates = append(candidates, defaultModelsListCandidateIDs(selectedPlatform)...)
+		}
+	}
 	if id <= 0 || s.accountRepo == nil {
 		return candidates, nil
 	}
@@ -113,7 +121,7 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 	}
 	for _, acc := range accounts {
 		if platform == PlatformComposite {
-			if !isConcreteRequestPlatform(acc.Platform) {
+			if !isConcreteRequestPlatform(acc.Platform) || (group != nil && !group.SupportsPlatform(acc.Platform)) {
 				continue
 			}
 		} else if acc.Platform != platform {
@@ -161,6 +169,9 @@ func (s *adminServiceImpl) CreateCompositeRoute(ctx context.Context, groupID int
 	if err != nil {
 		return nil, err
 	}
+	if err := s.validateCompositeRouteGroupPlatform(ctx, groupID, route.TargetPlatform); err != nil {
+		return nil, err
+	}
 	if err := s.compositeRouteRepo.Create(ctx, route); err != nil {
 		return nil, err
 	}
@@ -184,6 +195,9 @@ func (s *adminServiceImpl) UpdateCompositeRoute(ctx context.Context, groupID, ro
 	}
 	route, err := compositeRouteFromInput(groupID, input)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateCompositeRouteGroupPlatform(ctx, groupID, route.TargetPlatform); err != nil {
 		return nil, err
 	}
 	route.ID = routeID
@@ -226,6 +240,11 @@ func (s *adminServiceImpl) PreviewCompositeRoute(ctx context.Context, groupID in
 	if err != nil {
 		return nil, err
 	}
+	if decision.Matched {
+		if err := s.validateCompositeRouteGroupPlatform(ctx, groupID, decision.TargetPlatform); err != nil {
+			return nil, err
+		}
+	}
 	return &decision, nil
 }
 
@@ -236,6 +255,17 @@ func (s *adminServiceImpl) requireCompositeGroup(ctx context.Context, groupID in
 	}
 	if group.Platform != PlatformComposite {
 		return fmt.Errorf("group %d is not a composite group", groupID)
+	}
+	return nil
+}
+
+func (s *adminServiceImpl) validateCompositeRouteGroupPlatform(ctx context.Context, groupID int64, platform string) error {
+	group, err := s.groupRepo.GetByIDLite(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if !group.SupportsPlatform(platform) {
+		return infraerrors.BadRequest("COMPOSITE_ROUTE_PLATFORM_NOT_SELECTED", "target_platform is not selected in this group")
 	}
 	return nil
 }
@@ -355,6 +385,38 @@ func canCopyAccountsFromGroupPlatform(targetPlatform, sourcePlatform string) boo
 	return sourcePlatform == targetPlatform
 }
 
+func (s *adminServiceImpl) filterCopiedAccountIDsForGroup(ctx context.Context, group *Group, accountIDs []int64) ([]int64, error) {
+	if len(accountIDs) == 0 || group == nil || s.accountRepo == nil {
+		return accountIDs, nil
+	}
+	filterPlatforms := group.Platform == PlatformComposite && len(group.Platforms) > 0
+	filterOAuth := group.RequireOAuthOnly && groupSupportsOAuthOnlyFilter(group.Platform)
+	if !filterPlatforms && !filterOAuth {
+		return accountIDs, nil
+	}
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch accounts for group filters: %w", err)
+	}
+	allowed := make(map[int64]struct{}, len(accounts))
+	for _, account := range accounts {
+		if !group.SupportsAccount(account) {
+			continue
+		}
+		if filterOAuth && account.Type == AccountTypeAPIKey {
+			continue
+		}
+		allowed[account.ID] = struct{}{}
+	}
+	filtered := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if _, ok := allowed[accountID]; ok {
+			filtered = append(filtered, accountID)
+		}
+	}
+	return filtered, nil
+}
+
 func groupSupportsOAuthOnlyFilter(platform string) bool {
 	return platform == PlatformOpenAI ||
 		platform == PlatformAntigravity ||
@@ -394,6 +456,30 @@ func normalizeUpdateGroupInputForSimpleMode(input *UpdateGroupInput) {
 	*input = UpdateGroupInput{Name: input.Name, Description: input.Description, I18n: input.I18n}
 }
 
+func normalizeGroupPlatforms(platform string, platforms []string) (string, []string, error) {
+	platform = NormalizeGroupPlatform(platform)
+	if len(platforms) == 0 {
+		return platform, []string{}, nil
+	}
+	seen := make(map[string]struct{}, len(platforms))
+	normalized := make([]string, 0, len(platforms))
+	for _, item := range platforms {
+		item = strings.TrimSpace(item)
+		if !isConcreteRequestPlatform(item) {
+			return "", nil, infraerrors.BadRequest("INVALID_GROUP_PLATFORM", "platforms must contain only concrete platforms")
+		}
+		if _, exists := seen[item]; exists {
+			continue
+		}
+		seen[item] = struct{}{}
+		normalized = append(normalized, item)
+	}
+	if platform != PlatformComposite && (len(normalized) != 1 || normalized[0] != platform) {
+		return "", nil, infraerrors.BadRequest("INVALID_GROUP_PLATFORM", "platforms must match a single-platform group")
+	}
+	return platform, normalized, nil
+}
+
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && NormalizeGroupPlatform(input.Platform) == PlatformComposite {
 		return nil, infraerrors.BadRequest("SIMPLE_MODE_GROUP_NOT_BINDABLE", "composite groups are not supported in simple mode")
@@ -409,7 +495,10 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		return nil, err
 	}
 
-	platform := NormalizeGroupPlatform(input.Platform)
+	platform, platforms, err := normalizeGroupPlatforms(input.Platform, input.Platforms)
+	if err != nil {
+		return nil, err
+	}
 	// 固定账号 manifest 配置：账号绑定发生在创建之后，创建时无法校验成员关系，
 	// 拒绝开启并在创建后的编辑里配置。
 	if normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig).Enabled {
@@ -580,6 +669,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		Description:                     input.Description,
 		I18n:                            i18n,
 		Platform:                        platform,
+		Platforms:                       platforms,
 		RateMultiplier:                  input.RateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		Status:                          StatusActive,
@@ -650,25 +740,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		return nil, err
 	}
 
-	// require_oauth_only: 过滤掉 apikey 类型账号
-	if group.RequireOAuthOnly && groupSupportsOAuthOnlyFilter(group.Platform) && len(accountIDsToCopy) > 0 {
-		accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch accounts for oauth filter: %w", err)
-		}
-		oauthIDs := make(map[int64]struct{}, len(accounts))
-		for _, acc := range accounts {
-			if acc.Type != AccountTypeAPIKey {
-				oauthIDs[acc.ID] = struct{}{}
-			}
-		}
-		var filtered []int64
-		for _, aid := range accountIDsToCopy {
-			if _, ok := oauthIDs[aid]; ok {
-				filtered = append(filtered, aid)
-			}
-		}
-		accountIDsToCopy = filtered
+	accountIDsToCopy, err = s.filterCopiedAccountIDsForGroup(ctx, group, accountIDsToCopy)
+	if err != nil {
+		return nil, err
 	}
 
 	// 如果有需要复制的账号，绑定到新分组
@@ -792,23 +866,38 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 		group.I18n = i18n
 	}
-	if input.Platform != "" {
-		nextPlatform := NormalizeGroupPlatform(input.Platform)
-		if nextPlatform != group.Platform && nextPlatform != PlatformComposite && s.accountRepo != nil {
+	if input.Platform != "" || input.Platforms != nil {
+		nextPlatform := group.Platform
+		if input.Platform != "" {
+			nextPlatform = NormalizeGroupPlatform(input.Platform)
+		}
+		nextPlatforms := group.Platforms
+		if input.Platforms != nil {
+			nextPlatforms = *input.Platforms
+		} else if nextPlatform != PlatformComposite {
+			nextPlatforms = nil
+		}
+		nextPlatform, nextPlatforms, err = normalizeGroupPlatforms(nextPlatform, nextPlatforms)
+		if err != nil {
+			return nil, err
+		}
+		nextGroup := &Group{Platform: nextPlatform, Platforms: nextPlatforms}
+		if s.accountRepo != nil {
 			accounts, err := s.accountRepo.ListByGroup(ctx, id)
 			if err != nil {
 				return nil, fmt.Errorf("list accounts for platform change: %w", err)
 			}
 			for _, account := range accounts {
-				if account.Platform != nextPlatform {
+				if !nextGroup.SupportsAccount(&account) {
 					return nil, infraerrors.BadRequest(
 						"GROUP_PLATFORM_ACCOUNT_MISMATCH",
-						fmt.Sprintf("account %d uses platform %s; remove it before changing the group to %s", account.ID, account.Platform, nextPlatform),
+						fmt.Sprintf("account %d uses platform %s; remove it before changing the allowed group platforms", account.ID, account.Platform),
 					)
 				}
 			}
 		}
 		group.Platform = nextPlatform
+		group.Platforms = nextPlatforms
 	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier <= 0 {
@@ -1139,30 +1228,14 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			return nil, fmt.Errorf("failed to get accounts from source groups: %w", err)
 		}
 
+		accountIDsToCopy, err = s.filterCopiedAccountIDsForGroup(ctx, group, accountIDsToCopy)
+		if err != nil {
+			return nil, err
+		}
+
 		// 先清空当前分组的所有账号绑定
 		if _, err := s.groupRepo.DeleteAccountGroupsByGroupID(ctx, id); err != nil {
 			return nil, fmt.Errorf("failed to clear existing account bindings: %w", err)
-		}
-
-		// require_oauth_only: 过滤掉 apikey 类型账号
-		if group.RequireOAuthOnly && groupSupportsOAuthOnlyFilter(group.Platform) && len(accountIDsToCopy) > 0 {
-			accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
-			if err != nil {
-				return nil, fmt.Errorf("failed to fetch accounts for oauth filter: %w", err)
-			}
-			oauthIDs := make(map[int64]struct{}, len(accounts))
-			for _, acc := range accounts {
-				if acc.Type != AccountTypeAPIKey {
-					oauthIDs[acc.ID] = struct{}{}
-				}
-			}
-			var filtered []int64
-			for _, aid := range accountIDsToCopy {
-				if _, ok := oauthIDs[aid]; ok {
-					filtered = append(filtered, aid)
-				}
-			}
-			accountIDsToCopy = filtered
 		}
 
 		// 再绑定源分组的账号

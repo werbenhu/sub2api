@@ -514,10 +514,19 @@
             t("admin.groups.form.platform")
           }}</label>
           <Select
+            v-if="authStore.isSimpleMode"
             v-model="createForm.platform"
             :options="platformOptions"
             data-tour="group-form-platform"
-            @change="createForm.copy_accounts_from_group_ids = []"
+            @change="handleSimpleCreatePlatformChange"
+          />
+          <Select
+            v-else
+            v-model="createForm.platforms"
+            :options="platformOptions"
+            multiple
+            data-tour="group-form-platform"
+            @change="handleCreatePlatformsChange"
           />
           <p class="input-hint">{{ t("admin.groups.platformHint") }}</p>
         </div>
@@ -2149,12 +2158,22 @@
             t("admin.groups.form.platform")
           }}</label>
           <Select
+            v-if="authStore.isSimpleMode"
             v-model="editForm.platform"
             :options="platformOptions"
             data-tour="group-form-platform"
-            @change="editForm.copy_accounts_from_group_ids = []"
+            @change="handleSimpleEditPlatformChange"
+          />
+          <Select
+            v-else
+            v-model="editForm.platforms"
+            :options="platformOptions"
+            multiple
+            data-tour="group-form-platform"
+            @change="handleEditPlatformsChange"
           />
           <p class="input-hint">{{ t("admin.groups.platformEditHint") }}</p>
+          <p v-if="editAllowsAllPlatforms" class="input-hint">{{ t("admin.groups.platformAllHint") }}</p>
         </div>
         <template v-if="!authStore.isSimpleMode">
         <!-- 从分组复制账号（编辑时） -->
@@ -4273,6 +4292,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
 import type {
+  AccountPlatform,
   AdminGroup,
   CodexModelsManifestConfig,
   CompositeModelRoute,
@@ -4618,20 +4638,57 @@ const exclusiveOptions = computed(() => [
   { value: "false", label: t("admin.groups.nonExclusive") },
 ]);
 
-const platformOptions = computed(() =>
-  GROUP_PLATFORM_OPTIONS.filter(
-    (option) => !authStore.isSimpleMode || option.value !== "composite",
-  ),
-);
+const platformOptions = computed(() => [...CONCRETE_PLATFORM_OPTIONS]);
+const editAllowsAllPlatforms = ref(false);
+
+const handleSimpleCreatePlatformChange = () => {
+  createForm.platforms = [createForm.platform as AccountPlatform];
+  createForm.copy_accounts_from_group_ids = [];
+};
+
+const handleSimpleEditPlatformChange = () => {
+  editForm.platforms = [editForm.platform as AccountPlatform];
+  editAllowsAllPlatforms.value = false;
+  editForm.copy_accounts_from_group_ids = [];
+};
+
+const allPlatformValues = (): AccountPlatform[] =>
+  CONCRETE_PLATFORM_OPTIONS.map((option) => option.value);
+
+const platformForSelection = (platforms: AccountPlatform[]): GroupPlatform =>
+  platforms.length === 1 ? platforms[0] : "composite";
+
+const normalizePlatformSelection = (
+  values: (string | number | boolean | null)[],
+): AccountPlatform[] => values.map((value) => String(value) as AccountPlatform);
+
+const handleCreatePlatformsChange = (
+  values: (string | number | boolean | null)[],
+) => {
+  const platforms = normalizePlatformSelection(values);
+  createForm.platform = platformForSelection(platforms);
+  createForm.copy_accounts_from_group_ids = [];
+};
+
+const handleEditPlatformsChange = (
+  values: (string | number | boolean | null)[],
+) => {
+  const platforms = normalizePlatformSelection(values);
+  editForm.platform = platformForSelection(platforms);
+  editAllowsAllPlatforms.value = false;
+  editForm.copy_accounts_from_group_ids = [];
+};
 
 const platformFilterOptions = computed(() => [
   { value: "", label: t("admin.groups.allPlatforms") },
   ...GROUP_PLATFORM_OPTIONS,
 ]);
 
-const compositeRoutePlatformOptions = computed(() => [
-  ...CONCRETE_PLATFORM_OPTIONS,
-]);
+const compositeRoutePlatformOptions = computed(() => {
+  const selected = compositeRoutesGroup.value?.platforms;
+  if (!selected?.length) return [...CONCRETE_PLATFORM_OPTIONS];
+  return CONCRETE_PLATFORM_OPTIONS.filter((option) => selected.includes(option.value));
+});
 
 const compositeRouteEndpointOptions = computed(() => [
   { value: "any", label: t("admin.groups.compositeRoutes.endpoints.any") },
@@ -4944,6 +5001,7 @@ const createForm = reactive({
   description: "",
   i18n: {} as GroupI18n,
   platform: (authStore.isSimpleMode ? "anthropic" : "composite") as GroupPlatform,
+  platforms: (authStore.isSimpleMode ? ["anthropic"] : allPlatformValues()) as AccountPlatform[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   subscription_type: "subscription" as SubscriptionType,
@@ -5310,6 +5368,7 @@ const editForm = reactive({
   description: "",
   i18n: {} as GroupI18n,
   platform: "anthropic" as GroupPlatform,
+  platforms: ["anthropic"] as AccountPlatform[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   status: "active" as "active" | "inactive",
@@ -5787,6 +5846,7 @@ const closeCreateModal = () => {
   createForm.description = "";
   createForm.i18n = {};
   createForm.platform = authStore.isSimpleMode ? "anthropic" : "composite";
+  createForm.platforms = authStore.isSimpleMode ? ["anthropic"] : allPlatformValues();
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "subscription";
@@ -5900,6 +5960,10 @@ const validateGroupReasoningMultipliers = (pricing: PricingFormEntry[]): boolean
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
+    return;
+  }
+  if (createForm.platforms.length === 0) {
+    appStore.showError(t("admin.groups.platformRequired"));
     return;
   }
   if (
@@ -6076,6 +6140,12 @@ const handleEdit = async (group: AdminGroup) => {
     ]),
   );
   editForm.platform = group.platform;
+  editAllowsAllPlatforms.value = group.platform === "composite" && !group.platforms?.length;
+  editForm.platforms = group.platform === "composite"
+    ? group.platforms?.length
+      ? [...group.platforms]
+      : allPlatformValues()
+    : [group.platform];
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
@@ -6242,6 +6312,10 @@ const handleUpdateGroup = async () => {
     appStore.showError(t("admin.groups.nameRequired"));
     return;
   }
+  if (editForm.platforms.length === 0) {
+    appStore.showError(t("admin.groups.platformRequired"));
+    return;
+  }
   if (
     supportsReasoningEffortPolicyPlatform(editForm.platform) &&
     editReasoningEffortPolicyRef.value &&
@@ -6277,6 +6351,7 @@ const handleUpdateGroup = async () => {
     // 转换 fallback_group_id: null -> 0 (后端使用 0 表示清除)
     const payload = {
       ...editForm,
+      platforms: editAllowsAllPlatforms.value ? [] : editForm.platforms,
       force_openai_fast: normalizeGroupOpenAIFast(
         editForm.platform,
         editForm.force_openai_fast,
@@ -6496,7 +6571,7 @@ const resetCompositeRouteForm = () => {
   compositeRouteEditingId.value = null;
   compositeRouteForm.public_model = "";
   compositeRouteForm.match_type = "exact";
-  compositeRouteForm.target_platform = "openai";
+  compositeRouteForm.target_platform = compositeRoutePlatformOptions.value[0]?.value ?? "";
   compositeRouteForm.upstream_model = "";
   compositeRouteForm.endpoint = "any";
   compositeRouteForm.priority = 100;

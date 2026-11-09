@@ -229,6 +229,18 @@ func (_u *GroupUpdate) SetNillablePlatform(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetPlatforms sets the "platforms" field.
+func (_u *GroupUpdate) SetPlatforms(v []string) *GroupUpdate {
+	_u.mutation.SetPlatforms(v)
+	return _u
+}
+
+// AppendPlatforms appends value to the "platforms" field.
+func (_u *GroupUpdate) AppendPlatforms(v []string) *GroupUpdate {
+	_u.mutation.AppendPlatforms(v)
+	return _u
+}
+
 // SetSubscriptionType sets the "subscription_type" field.
 func (_u *GroupUpdate) SetSubscriptionType(v string) *GroupUpdate {
 	_u.mutation.SetSubscriptionType(v)
@@ -1637,6 +1649,14 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Platforms(); ok {
+		_spec.SetField(group.FieldPlatforms, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedPlatforms(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldPlatforms, value)
+		})
+	}
 	if value, ok := _u.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
 	}
@@ -2446,6 +2466,18 @@ func (_u *GroupUpdateOne) SetNillablePlatform(v *string) *GroupUpdateOne {
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
+	return _u
+}
+
+// SetPlatforms sets the "platforms" field.
+func (_u *GroupUpdateOne) SetPlatforms(v []string) *GroupUpdateOne {
+	_u.mutation.SetPlatforms(v)
+	return _u
+}
+
+// AppendPlatforms appends value to the "platforms" field.
+func (_u *GroupUpdateOne) AppendPlatforms(v []string) *GroupUpdateOne {
+	_u.mutation.AppendPlatforms(v)
 	return _u
 }
 
@@ -3886,6 +3918,14 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Platforms(); ok {
+		_spec.SetField(group.FieldPlatforms, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedPlatforms(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldPlatforms, value)
+		})
 	}
 	if value, ok := _u.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)

@@ -224,6 +224,12 @@ func (_c *GroupCreate) SetNillablePlatform(v *string) *GroupCreate {
 	return _c
 }
 
+// SetPlatforms sets the "platforms" field.
+func (_c *GroupCreate) SetPlatforms(v []string) *GroupCreate {
+	_c.mutation.SetPlatforms(v)
+	return _c
+}
+
 // SetSubscriptionType sets the "subscription_type" field.
 func (_c *GroupCreate) SetSubscriptionType(v string) *GroupCreate {
 	_c.mutation.SetSubscriptionType(v)
@@ -1103,6 +1109,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultPlatform
 		_c.mutation.SetPlatform(v)
 	}
+	if _, ok := _c.mutation.Platforms(); !ok {
+		v := group.DefaultPlatforms
+		_c.mutation.SetPlatforms(v)
+	}
 	if _, ok := _c.mutation.SubscriptionType(); !ok {
 		v := group.DefaultSubscriptionType
 		_c.mutation.SetSubscriptionType(v)
@@ -1309,6 +1319,9 @@ func (_c *GroupCreate) check() error {
 		if err := group.PlatformValidator(v); err != nil {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.Platforms(); !ok {
+		return &ValidationError{Name: "platforms", err: errors.New(`ent: missing required field "Group.platforms"`)}
 	}
 	if _, ok := _c.mutation.SubscriptionType(); !ok {
 		return &ValidationError{Name: "subscription_type", err: errors.New(`ent: missing required field "Group.subscription_type"`)}
@@ -1538,6 +1551,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
 		_node.Platform = value
+	}
+	if value, ok := _c.mutation.Platforms(); ok {
+		_spec.SetField(group.FieldPlatforms, field.TypeJSON, value)
+		_node.Platforms = value
 	}
 	if value, ok := _c.mutation.SubscriptionType(); ok {
 		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
@@ -2084,6 +2101,18 @@ func (u *GroupUpsert) SetPlatform(v string) *GroupUpsert {
 // UpdatePlatform sets the "platform" field to the value that was provided on create.
 func (u *GroupUpsert) UpdatePlatform() *GroupUpsert {
 	u.SetExcluded(group.FieldPlatform)
+	return u
+}
+
+// SetPlatforms sets the "platforms" field.
+func (u *GroupUpsert) SetPlatforms(v []string) *GroupUpsert {
+	u.Set(group.FieldPlatforms, v)
+	return u
+}
+
+// UpdatePlatforms sets the "platforms" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePlatforms() *GroupUpsert {
+	u.SetExcluded(group.FieldPlatforms)
 	return u
 }
 
@@ -3242,6 +3271,20 @@ func (u *GroupUpsertOne) SetPlatform(v string) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdatePlatform() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetPlatforms sets the "platforms" field.
+func (u *GroupUpsertOne) SetPlatforms(v []string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPlatforms(v)
+	})
+}
+
+// UpdatePlatforms sets the "platforms" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePlatforms() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePlatforms()
 	})
 }
 
@@ -4716,6 +4759,20 @@ func (u *GroupUpsertBulk) SetPlatform(v string) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdatePlatform() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetPlatforms sets the "platforms" field.
+func (u *GroupUpsertBulk) SetPlatforms(v []string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPlatforms(v)
+	})
+}
+
+// UpdatePlatforms sets the "platforms" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePlatforms() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePlatforms()
 	})
 }
 

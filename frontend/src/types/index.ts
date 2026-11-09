@@ -542,6 +542,8 @@ export interface Group {
   name: string
   description: string | null
   platform: GroupPlatform
+  /** 多平台分组允许的具体平台；空数组兼容旧数据并表示全部平台。 */
+  platforms?: AccountPlatform[]
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   max_reasoning_effort?: string // Anthropic/OpenAI reasoning ceiling; empty means unlimited
@@ -774,6 +776,7 @@ export interface CreateGroupRequest {
   description?: string | null
   i18n?: GroupI18n
   platform?: GroupPlatform
+  platforms?: AccountPlatform[]
   rate_multiplier?: number
   is_exclusive?: boolean
   subscription_type?: SubscriptionType
@@ -841,6 +844,7 @@ export interface UpdateGroupRequest {
   description?: string | null
   i18n?: GroupI18n
   platform?: GroupPlatform
+  platforms?: AccountPlatform[]
   rate_multiplier?: number
   is_exclusive?: boolean
   status?: 'active' | 'inactive'

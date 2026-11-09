@@ -204,10 +204,15 @@ func TestAdminService_BulkUpdateAccounts_PartialFailureIDs(t *testing.T) {
 		bindGroupErrByID: map[int64]error{
 			2: errors.New("bind failed"),
 		},
+		getByIDsAccounts: []*Account{
+			{ID: 1, Platform: PlatformOpenAI},
+			{ID: 2, Platform: PlatformOpenAI},
+			{ID: 3, Platform: PlatformOpenAI},
+		},
 	}
 	svc := &adminServiceImpl{
 		accountRepo: repo,
-		groupRepo:   &groupRepoStubForAdmin{getByID: &Group{ID: 10, Name: "g10"}},
+		groupRepo:   &groupRepoStubForAdmin{getByID: &Group{ID: 10, Name: "g10", Platform: PlatformOpenAI}},
 	}
 
 	groupIDs := []int64{10}
