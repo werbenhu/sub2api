@@ -38,17 +38,27 @@ func (s *APIKeyService) validateAPIKeyGroups(ctx context.Context, user *User, gr
 }
 
 func (s *APIKeyService) defaultUserGroupIDs(ctx context.Context, user *User) []int64 {
-	if s == nil || user == nil || s.userSubRepo == nil || s.groupRepo == nil {
+	if s == nil || user == nil || s.groupRepo == nil {
 		return nil
 	}
-	subscriptions, err := s.userSubRepo.ListActiveByUserID(ctx, user.ID)
-	if err != nil {
-		return nil
+	groupIDs := make([]int64, 0, len(user.AllowedGroups))
+	if s.userSubRepo != nil {
+		subscriptions, err := s.userSubRepo.ListActiveByUserID(ctx, user.ID)
+		if err == nil {
+			for _, subscription := range subscriptions {
+				group, groupErr := s.groupRepo.GetByID(ctx, subscription.GroupID)
+				if groupErr == nil && group != nil && group.Status == StatusActive && group.IsSubscriptionType() {
+					groupIDs = append(groupIDs, group.ID)
+				}
+			}
+		}
 	}
-	groupIDs := make([]int64, 0, len(subscriptions))
-	for _, subscription := range subscriptions {
-		group, err := s.groupRepo.GetByID(ctx, subscription.GroupID)
-		if err == nil && group != nil && group.Status == StatusActive {
+	for _, groupID := range user.AllowedGroups {
+		group, err := s.groupRepo.GetByID(ctx, groupID)
+		if err != nil || group == nil || group.Status != StatusActive || group.IsSubscriptionType() {
+			continue
+		}
+		if user.CanBindGroup(group.ID, group.IsExclusive) {
 			groupIDs = append(groupIDs, group.ID)
 		}
 	}
@@ -61,18 +71,20 @@ func (s *APIKeyService) ResolveGroupForModel(ctx context.Context, apiKey *APIKey
 	}
 	groupIDs := apiKey.ConfiguredGroupIDs()
 	var fallback *Group
+	var compositeFallback *Group
 	for _, groupID := range groupIDs {
 		group, err := s.groupRepo.GetByID(ctx, groupID)
 		if err != nil || group == nil || group.Status != StatusActive {
 			continue
 		}
-		if s.userSubRepo != nil {
-			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, apiKey.UserID, groupID); err != nil {
-				continue
-			}
+		if !s.userCanUseGroup(ctx, apiKey.User, apiKey.UserID, group) {
+			continue
 		}
 		if fallback == nil {
 			fallback = group
+		}
+		if group.Platform == PlatformComposite && compositeFallback == nil {
+			compositeFallback = group
 		}
 		if s.compositeResolver == nil {
 			continue
@@ -89,12 +101,49 @@ func (s *APIKeyService) ResolveGroupForModel(ctx context.Context, apiKey *APIKey
 			apiKey.Group = group
 			return nil
 		}
+		if decision.Matched && decision.Source == CompositeRouteSourceDetector &&
+			group.Platform == decision.TargetPlatform {
+			apiKey.GroupID = int64Pointer(groupID)
+			apiKey.Group = group
+			return nil
+		}
+	}
+	if compositeFallback != nil {
+		apiKey.GroupID = int64Pointer(compositeFallback.ID)
+		apiKey.Group = compositeFallback
+		return nil
 	}
 	if fallback != nil {
 		apiKey.GroupID = int64Pointer(fallback.ID)
 		apiKey.Group = fallback
 	}
 	return nil
+}
+
+func (s *APIKeyService) userCanUseGroup(ctx context.Context, user *User, userID int64, group *Group) bool {
+	if group == nil || group.Status != StatusActive {
+		return false
+	}
+	if group.IsSubscriptionType() {
+		if s.userSubRepo == nil {
+			return false
+		}
+		_, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, userID, group.ID)
+		return err == nil
+	}
+	if user == nil {
+		return false
+	}
+	return user.CanBindGroup(group.ID, group.IsExclusive)
+}
+
+// UserCanUseGroup reports whether the user represented by an API key may use a
+// group. It is shared by routing and model catalog generation.
+func (s *APIKeyService) UserCanUseGroup(ctx context.Context, apiKey *APIKey, group *Group) bool {
+	if apiKey == nil {
+		return false
+	}
+	return s.userCanUseGroup(ctx, apiKey.User, apiKey.UserID, group)
 }
 
 func (s *APIKeyService) ActiveSubscriptionForKey(ctx context.Context, apiKey *APIKey) (*UserSubscription, error) {

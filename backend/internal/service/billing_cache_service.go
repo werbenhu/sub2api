@@ -745,11 +745,17 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 	}
 
 	isSubscriptionMode := group != nil && group.IsSubscriptionType()
-	if !isSubscriptionMode || subscription == nil {
-		return ErrSubscriptionInvalid
-	}
-	if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
-		return err
+	if isSubscriptionMode {
+		if subscription == nil {
+			return ErrSubscriptionInvalid
+		}
+		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
+			return err
+		}
+	} else if user != nil {
+		if err := s.checkUserPlatformQuotaEligibility(ctx, user.ID, platform); err != nil {
+			return err
+		}
 	}
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && s.cfg.SimpleModeKeyRateLimitEnabled {
@@ -779,7 +785,7 @@ func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User
 		return nil, nil
 	}
 	subscriptionBill := group != nil && group.IsSubscriptionType()
-	if !subscriptionBill || subscription == nil {
+	if subscriptionBill && subscription == nil {
 		return nil, ErrSubscriptionInvalid
 	}
 	res, err := s.reserveInflight(ctx, user, group, subscription, amount, false, false)
@@ -793,7 +799,7 @@ func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User
 	if apiKey != nil && (apiKey.Quota > 0 || apiKey.HasRateLimits()) {
 		res, apiKeyPending = s.reserveInflightScope(ctx, res, user.ID, inflightAPIKeyScope(apiKey.ID), amount)
 	}
-	if group.HasDailyLimit() || group.HasWeeklyLimit() || group.HasMonthlyLimit() {
+	if subscriptionBill && group != nil && (group.HasDailyLimit() || group.HasWeeklyLimit() || group.HasMonthlyLimit()) {
 		err = s.checkFixedChargeSubscription(ctx, user.ID, group, amount+subscriptionPending)
 	}
 	if err == nil && apiKey != nil {

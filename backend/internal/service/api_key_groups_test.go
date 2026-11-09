@@ -56,8 +56,8 @@ func (s multiGroupSubscriptionRepoStub) GetActiveByUserIDAndGroupID(_ context.Co
 
 func TestAPIKeyCreateDefaultsToAllActiveSubscriptionGroups(t *testing.T) {
 	groups := map[int64]*Group{
-		1: {ID: 1, Status: StatusActive},
-		2: {ID: 2, Status: StatusActive},
+		1: {ID: 1, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
+		2: {ID: 2, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
 	}
 	keyRepo := &multiGroupAPIKeyRepoStub{}
 	svc := NewAPIKeyService(keyRepo, multiGroupUserRepoStub{}, multiGroupGroupRepoStub{groups: groups}, multiGroupSubscriptionRepoStub{groupIDs: []int64{1, 2}}, nil, nil, &config.Config{})
@@ -72,8 +72,8 @@ func TestAPIKeyCreateDefaultsToAllActiveSubscriptionGroups(t *testing.T) {
 
 func TestAPIKeyResolveGroupForModelUsesExplicitRoute(t *testing.T) {
 	groups := map[int64]*Group{
-		1: {ID: 1, Platform: PlatformAnthropic, Status: StatusActive},
-		2: {ID: 2, Platform: PlatformComposite, Status: StatusActive},
+		1: {ID: 1, Platform: PlatformAnthropic, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
+		2: {ID: 2, Platform: PlatformComposite, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
 	}
 	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{{
 		ID: 1, GroupID: 2, PublicModel: "internal-shared", TargetPlatform: PlatformOpenAI, Enabled: true,
@@ -85,6 +85,52 @@ func TestAPIKeyResolveGroupForModelUsesExplicitRoute(t *testing.T) {
 	require.NoError(t, svc.ResolveGroupForModel(context.Background(), key, "internal-shared", CompositeRouteEndpointResponses))
 	require.Equal(t, int64(2), *key.GroupID)
 	require.Same(t, groups[2], key.Group)
+}
+
+func TestAPIKeyResolveGroupForModelUsesDetectorPlatformForStandardGroups(t *testing.T) {
+	groups := map[int64]*Group{
+		1: {ID: 1, Platform: PlatformOpenAI, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard},
+		2: {ID: 2, Platform: PlatformKimi, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard},
+	}
+	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{})
+	svc := NewAPIKeyService(nil, nil, multiGroupGroupRepoStub{groups: groups}, nil, nil, nil, nil)
+	svc.SetCompositeRouteResolver(resolver)
+	key := &APIKey{
+		UserID: 42,
+		User:   &User{ID: 42},
+		GroupID: int64Pointer(1),
+		GroupIDs: []int64{1, 2},
+	}
+
+	require.NoError(t, svc.ResolveGroupForModel(context.Background(), key, "kimi-k2", CompositeRouteEndpointChatCompletions))
+	require.Equal(t, int64(2), *key.GroupID)
+	require.Same(t, groups[2], key.Group)
+}
+
+func TestAPIKeyDefaultsIncludeAuthorizedStandardGroups(t *testing.T) {
+	groups := map[int64]*Group{
+		1: {ID: 1, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
+		2: {ID: 2, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard, IsExclusive: true},
+	}
+	keyRepo := &multiGroupAPIKeyRepoStub{}
+	userRepo := multiGroupUserRepoWithAllowedGroups{user: &User{ID: 42, Status: StatusActive, AllowedGroups: []int64{2}}}
+	groupRepo := multiGroupGroupRepoStub{groups: groups}
+	subRepo := multiGroupSubscriptionRepoStub{groupIDs: []int64{1}}
+	svc := NewAPIKeyService(keyRepo, userRepo, groupRepo, subRepo, nil, nil, &config.Config{})
+
+	key, err := svc.Create(context.Background(), 42, CreateAPIKeyRequest{Name: "internal"})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 2}, key.GroupIDs)
+}
+
+type multiGroupUserRepoWithAllowedGroups struct {
+	UserRepository
+	user *User
+}
+
+func (s multiGroupUserRepoWithAllowedGroups) GetByID(context.Context, int64) (*User, error) {
+	return s.user, nil
 }
 
 func TestAPIKeyAuthSnapshotPreservesMultipleGroups(t *testing.T) {

@@ -154,7 +154,7 @@ func (g *Group) IsActive() bool {
 }
 
 func (g *Group) IsSubscriptionType() bool {
-	return true
+	return g != nil && g.SubscriptionType == SubscriptionTypeSubscription
 }
 
 func (g *Group) HasDailyLimit() bool {

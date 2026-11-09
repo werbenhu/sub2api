@@ -203,9 +203,16 @@ func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, user 
 		groupID int64
 		days    int
 	}
+	originalAllowedGroups := append([]int64(nil), user.AllowedGroups...)
 	var assignments []assignment
 	if s.settingService != nil {
 		for _, item := range s.settingService.GetDefaultSubscriptions(ctx) {
+			if s.groupRepo != nil {
+				group, err := s.groupRepo.GetByID(ctx, item.GroupID)
+				if err != nil || group == nil || !group.IsSubscriptionType() {
+					continue
+				}
+			}
 			assignments = append(assignments, assignment{groupID: item.GroupID, days: item.ValidityDays})
 		}
 	}
@@ -216,6 +223,12 @@ func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, user 
 	for _, groupID := range user.AllowedGroups {
 		if _, ok := seen[groupID]; ok {
 			continue
+		}
+		if s.groupRepo != nil {
+			group, err := s.groupRepo.GetByID(ctx, groupID)
+			if err != nil || group == nil || !group.IsSubscriptionType() {
+				continue
+			}
 		}
 		days := 30
 		if s.groupRepo != nil {
@@ -228,7 +241,11 @@ func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, user 
 	}
 
 	assigned := false
-	allowedGroups := make([]int64, 0, len(assignments))
+	allowedGroups := append([]int64(nil), originalAllowedGroups...)
+	allowedSeen := make(map[int64]struct{}, len(allowedGroups))
+	for _, groupID := range allowedGroups {
+		allowedSeen[groupID] = struct{}{}
+	}
 	for _, item := range assignments {
 		if item.groupID <= 0 {
 			continue
@@ -244,7 +261,10 @@ func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, user 
 			logger.LegacyPrintf("service.admin", "failed to assign default subscription: user_id=%d group_id=%d err=%v", user.ID, item.groupID, err)
 			continue
 		}
-		allowedGroups = append(allowedGroups, item.groupID)
+		if _, exists := allowedSeen[item.groupID]; !exists {
+			allowedGroups = append(allowedGroups, item.groupID)
+			allowedSeen[item.groupID] = struct{}{}
+		}
 		assigned = true
 	}
 	user.AllowedGroups = allowedGroups

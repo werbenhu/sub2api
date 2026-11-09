@@ -132,7 +132,7 @@ func TestAdminService_CreateUser_AssignsDefaultSubscriptions(t *testing.T) {
 	}}, cfg)
 	keyRepo := &multiGroupAPIKeyRepoStub{}
 	keyService := NewAPIKeyService(keyRepo, multiGroupUserRepoStub{}, multiGroupGroupRepoStub{groups: map[int64]*Group{
-		5: {ID: 5, Status: StatusActive},
+		5: {ID: 5, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
 	}}, multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, nil, &config.Config{})
 	svc := &adminServiceImpl{
 		userRepo:             repo,
@@ -152,4 +152,34 @@ func TestAdminService_CreateUser_AssignsDefaultSubscriptions(t *testing.T) {
 	require.Equal(t, 30, assigner.calls[0].ValidityDays)
 	require.NotNil(t, keyRepo.created)
 	require.Equal(t, []int64{5}, keyRepo.created.GroupIDs)
+}
+
+func TestAdminService_CreateUser_PreservesStandardAllowedGroup(t *testing.T) {
+	repo := &userRepoStub{nextID: 22}
+	assigner := &defaultSubscriptionAssignerStub{}
+	settingService := NewSettingService(&settingRepoStub{values: map[string]string{
+		SettingKeyDefaultSubscriptions: `[{"group_id":5,"validity_days":30}]`,
+	}}, &config.Config{})
+	keyRepo := &multiGroupAPIKeyRepoStub{}
+	keyService := NewAPIKeyService(keyRepo,
+		multiGroupUserRepoWithAllowedGroups{user: &User{ID: 22, Status: StatusActive, AllowedGroups: []int64{7}}},
+		multiGroupGroupRepoStub{groups: map[int64]*Group{
+			5: {ID: 5, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
+			7: {ID: 7, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard, IsExclusive: true},
+		}},
+		multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, nil, &config.Config{})
+	svc := &adminServiceImpl{
+		userRepo:             repo,
+		settingService:       settingService,
+		defaultSubAssigner:   assigner,
+		defaultAPIKeyCreator: keyService,
+	}
+
+	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email: "standard-group@test.com", Password: "password", AllowedGroups: []int64{7},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int64{7, 5}, user.AllowedGroups)
+	require.NotNil(t, keyRepo.created)
+	require.Equal(t, []int64{5, 7}, keyRepo.created.GroupIDs)
 }

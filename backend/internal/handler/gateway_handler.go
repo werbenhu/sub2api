@@ -1240,6 +1240,9 @@ func (h *GatewayHandler) multiGroupModelIDs(ctx context.Context, apiKey *service
 		if err != nil || group == nil || group.Status != service.StatusActive {
 			continue
 		}
+		if h.apiKeyService != nil && !h.apiKeyService.UserCanUseGroup(ctx, apiKey, group) {
+			continue
+		}
 		groupID := group.ID
 		var available []string
 		if group.Platform == service.PlatformComposite {

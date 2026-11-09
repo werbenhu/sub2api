@@ -772,7 +772,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 
 	isSubscriptionBilling := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
-	billingType := BillingTypeSubscription
+	billingType := BillingTypeBalance
+	if isSubscriptionBilling {
+		billingType = BillingTypeSubscription
+	}
 
 	// 创建使用日志
 	accountRateMultiplier := account.BillingRateMultiplier()

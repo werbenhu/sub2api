@@ -496,9 +496,6 @@ func disableRemovedAuthenticationSettings(req *UpdateSettingsRequest) {
 	req.TotpEnabled = false
 	req.PasskeyEnabled = &disabled
 	req.StepUpEnabled = &disabled
-	req.TurnstileEnabled = false
-	req.TencentCaptchaEnabled = false
-	req.AliyunCaptchaEnabled = false
 	req.LinuxDoConnectEnabled = false
 	req.DingTalkConnectEnabled = false
 	req.WeChatConnectEnabled = false

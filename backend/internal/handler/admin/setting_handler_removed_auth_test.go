@@ -22,7 +22,9 @@ func TestDisableRemovedAuthenticationSettings(t *testing.T) {
 	require.False(t, *req.PasskeyEnabled)
 	require.NotNil(t, req.StepUpEnabled)
 	require.False(t, *req.StepUpEnabled)
-	require.False(t, req.TurnstileEnabled || req.TencentCaptchaEnabled || req.AliyunCaptchaEnabled)
+	require.True(t, req.TurnstileEnabled)
+	require.True(t, req.TencentCaptchaEnabled)
+	require.True(t, req.AliyunCaptchaEnabled)
 	require.False(t, req.LinuxDoConnectEnabled || req.DingTalkConnectEnabled || req.WeChatConnectEnabled)
 	require.False(t, req.OIDCConnectEnabled || req.GitHubOAuthEnabled || req.GoogleOAuthEnabled)
 }
