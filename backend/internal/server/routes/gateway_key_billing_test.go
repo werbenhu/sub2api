@@ -30,21 +30,7 @@ func (r *keyBillingRouteAPIKeyRepo) GetByKeyForAuth(_ context.Context, key strin
 	return &clone, nil
 }
 
-type keyBillingRouteRateRepo struct {
-	service.UserGroupRateRepository
-	lookupCalls int
-}
-
-func (r *keyBillingRouteRateRepo) GetByUserAndGroup(context.Context, int64, int64) (*float64, error) {
-	r.lookupCalls++
-	return nil, nil
-}
-
-func (r *keyBillingRouteRateRepo) GetRPMOverrideByUserAndGroup(context.Context, int64, int64) (*int, error) {
-	return nil, nil
-}
-
-func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRouteRateRepo, string) {
+func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, string) {
 	gin.SetMode(gin.TestMode)
 	group := &service.Group{
 		ID:               42,
@@ -71,16 +57,15 @@ func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRoute
 		Group:   apiKeyGroup,
 	}
 	cfg := &config.Config{RunMode: runMode}
-	rateRepo := &keyBillingRouteRateRepo{}
 	apiKeyService := service.NewAPIKeyService(
-		&keyBillingRouteAPIKeyRepo{apiKey: apiKey}, nil, nil, nil, rateRepo, nil, cfg,
+		&keyBillingRouteAPIKeyRepo{apiKey: apiKey}, nil, nil, nil, nil, cfg,
 	)
 	gatewayService := service.NewGatewayService(
-		nil, nil, nil, nil, nil, nil, rateRepo, nil, cfg, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	openAIGatewayService := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, rateRepo, nil, cfg, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	gatewayHandler := handler.NewGatewayHandler(
@@ -103,7 +88,7 @@ func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRoute
 		nil,
 		cfg,
 	)
-	return router, rateRepo, apiKey.Key
+	return router, apiKey.Key
 }
 
 func TestGatewayRoutesKeyBillingInfoPathIsRegistered(t *testing.T) {
@@ -120,7 +105,7 @@ func TestGatewayRoutesKeyBillingInfoPathIsRegistered(t *testing.T) {
 
 func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 	t.Run("missing credentials", func(t *testing.T) {
-		router, rateRepo, _ := newKeyBillingRouteTestRouter(config.RunModeStandard)
+		router, _ := newKeyBillingRouteTestRouter(config.RunModeStandard)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil))
@@ -128,11 +113,10 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 		require.Contains(t, w.Header().Get("Content-Type"), "application/json")
 		require.NotContains(t, strings.ToLower(w.Body.String()), "<!doctype html>")
-		require.Zero(t, rateRepo.lookupCalls)
 	})
 
 	t.Run("standard mode", func(t *testing.T) {
-		router, rateRepo, key := newKeyBillingRouteTestRouter(config.RunModeStandard)
+		router, key := newKeyBillingRouteTestRouter(config.RunModeStandard)
 		req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil)
 		req.Header.Set("Authorization", "Bearer "+key)
 		w := httptest.NewRecorder()
@@ -147,11 +131,10 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		require.Equal(t, "sub2api.key_billing", body["object"])
 		require.Equal(t, 0.75, body["effective_rate_multiplier"])
-		require.Equal(t, 1, rateRepo.lookupCalls)
 	})
 
 	t.Run("simple mode", func(t *testing.T) {
-		router, rateRepo, key := newKeyBillingRouteTestRouter(config.RunModeSimple)
+		router, key := newKeyBillingRouteTestRouter(config.RunModeSimple)
 		req := httptest.NewRequest(http.MethodGet, "/v1/sub2api/billing", nil)
 		req.Header.Set("x-api-key", key)
 		w := httptest.NewRecorder()
@@ -168,6 +151,5 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 				"message": "Billing information is not supported in simple mode"
 			}
 		}`, w.Body.String())
-		require.Zero(t, rateRepo.lookupCalls)
 	})
 }

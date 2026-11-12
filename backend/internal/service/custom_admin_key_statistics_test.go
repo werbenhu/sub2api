@@ -31,15 +31,6 @@ func TestScopedAdminUsageServiceRechecksScopeBeforeSnapshot(t *testing.T) {
 	require.Nil(t, u)
 	require.Equal(t, 404, infraerrors.Code(err))
 }
-func TestScopedAdminReferralServiceChecksScopeBeforeResolvingParent(t *testing.T) {
-	parentID := int64(2)
-	shadow := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, GroupIDs: []int64{1}, ParentAccountID: &parentID}
-	parent := &Account{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeOAuth, GroupIDs: []int64{2}}
-	svc := &OpenAIQuotaService{accountRepo: &stubQuotaAccountRepo{accounts: map[int64]*Account{1: shadow, 2: parent}}}
-	a, err := svc.referralAccount(scopedStatisticsServiceContext("openai.referrals.read"), 1, false)
-	require.Nil(t, a)
-	require.Equal(t, 404, infraerrors.Code(err))
-}
 
 func TestScopedAdminQuotaCacheWriteRechecksScope(t *testing.T) {
 	a := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, GroupIDs: []int64{2}}
@@ -252,7 +243,7 @@ func TestScopedAdminOpenAIUsageRefreshNeverGeneratesModelRequests(t *testing.T) 
 				_, _ = w.Write([]byte(`{"rate_limit":{"primary_window":{"used_percent":37,"limit_window_seconds":18000,"reset_after_seconds":3600}},"additional_rate_limits":[{"metered_feature":"codex_bengalfox","rate_limit":{"primary_window":{"used_percent":67,"limit_window_seconds":18000,"reset_after_seconds":3600}}}],"rate_limit_reset_credits":{"available_count":0}}`))
 			}))
 			defer upstream.Close()
-			quota := NewOpenAIQuotaService(repo, nil, NewOpenAITokenProvider(repo, nil, nil), newQuotaRedirectingFactory(upstream), nil)
+			quota := NewOpenAIQuotaService(repo, nil, NewOpenAITokenProvider(repo, nil, nil), newQuotaRedirectingFactory(upstream))
 			client, err := httppool.GetClient(httppool.Options{Timeout: 15 * time.Second, ResponseHeaderTimeout: 10 * time.Second})
 			require.NoError(t, err)
 			previous := client.Transport

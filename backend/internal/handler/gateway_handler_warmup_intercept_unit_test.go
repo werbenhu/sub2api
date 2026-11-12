@@ -173,7 +173,6 @@ func newTestGatewayHandlerWithSchedulerCache(t *testing.T, group *service.Group,
 		nil, // usageBillingRepo
 		nil, // userRepo
 		nil, // userSubRepo
-		nil, // userGroupRateRepo
 		nil, // cache (disable sticky)
 		nil, // cfg
 		schedulerSnapshot,
@@ -199,7 +198,7 @@ func newTestGatewayHandlerWithSchedulerCache(t *testing.T, group *service.Group,
 
 	// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 
 	concurrencySvc := service.NewConcurrencyService(&fakeConcurrencyCache{})
 	concurrencyHelper := NewConcurrencyHelper(concurrencySvc, SSEPingFormatClaude, 0)

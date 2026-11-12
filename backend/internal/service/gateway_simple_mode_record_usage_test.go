@@ -5,9 +5,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestSimpleModeRecordUsageWindowOptIn(t *testing.T) {
@@ -23,7 +24,7 @@ func TestSimpleModeRecordUsageWindowOptIn(t *testing.T) {
 					user := &User{ID: 2, Balance: 0}
 					account := &Account{ID: 3, Type: AccountTypeAPIKey}
 					if openAI {
-						svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(logs, billing, users, subs, nil)
+						svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(logs, billing, users, subs)
 						svc.cfg.RunMode = config.RunModeSimple
 						svc.cfg.SimpleModeKeyRateLimitEnabled = enabled
 						err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},

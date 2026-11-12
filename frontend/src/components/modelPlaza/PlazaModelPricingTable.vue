@@ -278,7 +278,7 @@
             <span v-else class="text-gray-400 dark:text-dark-500">-</span>
           </td>
 
-          <!-- 折扣倍率(分时时段行展示 生效倍率×时段倍率;生图独立倍率行展示独立倍率;专属倍率划线展示原倍率) -->
+          <!-- 折扣倍率(分时时段行展示 生效倍率×时段倍率;生图独立倍率行展示独立倍率) -->
           <td
             class="border-l border-gray-100 py-2.5 pl-3 pr-5 text-right align-middle font-mono text-xs dark:border-dark-700/60"
           >
@@ -293,10 +293,6 @@
               class="font-bold text-gray-700 dark:text-gray-300"
               >{{ requestRate(m) }}x</span
             >
-            <template v-else-if="hasCustomRate">
-              <span class="mr-1 text-gray-400 line-through dark:text-dark-500">{{ rateMultiplier }}x</span>
-              <span class="font-bold text-primary-600 dark:text-primary-400">{{ effectiveRate }}x</span>
-            </template>
             <span v-else class="font-bold text-gray-700 dark:text-gray-300">{{ effectiveRate }}x</span>
           </td>
         </tr>
@@ -336,12 +332,9 @@ const props = defineProps<{
   platform?: string
   /** 分组默认倍率。 */
   rateMultiplier: number
-  /** 用户专属倍率;与默认不同,实付价按此计算并划线展示原倍率。 */
-  userRateMultiplier?: number | null
-  /** 生图独立倍率:true 时图片计费模型的实付倍率取 imageRateMultiplier,不取分组/专属倍率。 */
+  /** 生图独立倍率:true 时图片计费模型的实付倍率取 imageRateMultiplier,不取分组倍率。 */
   imageRateIndependent?: boolean
   imageRateMultiplier?: number | null
-  /** 视频独立倍率开启时，覆盖分组/用户专属倍率，与后端视频计费保持一致。 */
   videoRateIndependent?: boolean
   videoRateMultiplier?: number | null
   /**
@@ -380,10 +373,7 @@ const sortedModels = computed(() => {
   })
 })
 
-const effectiveRate = computed(() => props.userRateMultiplier ?? props.rateMultiplier)
-const hasCustomRate = computed(
-  () => props.userRateMultiplier != null && props.userRateMultiplier !== props.rateMultiplier
-)
+const effectiveRate = computed(() => props.rateMultiplier)
 
 function billingMode(m: PlazaModel): BillingMode {
   return (m.pricing?.billing_mode || BILLING_MODE_TOKEN) as BillingMode
@@ -530,7 +520,6 @@ function tierHint(m: PlazaModel): string {
     ? t('modelPlaza.table.tierHintMarginal')
     : t('modelPlaza.table.tierHint')
 }
-
 
 /** 按次/按图模式的阶梯定价(仅保留配了按次价的档位)。 */
 function requestIntervals(m: PlazaModel): UserPricingInterval[] {

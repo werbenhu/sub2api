@@ -339,10 +339,10 @@ func newCachedBillingEnv(t *testing.T, balance float64, accountIDs ...int64) *ca
 	}
 	userRepo := &cachedBillingUserRepo{balance: balance}
 	usage := &cachedBillingUsageRepo{}
-	bcs := service.NewBillingCacheService(nil, userRepo, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	bcs := service.NewBillingCacheService(nil, userRepo, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(bcs.Stop)
 	snapshot := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: scheduled}, nil, nil, nil, nil)
-	gw := service.NewGatewayService(nil, &fakeGroupRepo{group: group}, usage, nil, userRepo, nil, nil, nil, cfg, snapshot, nil,
+	gw := service.NewGatewayService(nil, &fakeGroupRepo{group: group}, usage, nil, userRepo, nil, nil, cfg, snapshot, nil,
 		billing, nil, bcs, nil, nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	upstream := &cachedBillingUpstream{}
 	compat := service.NewGeminiMessagesCompatService(&cachedBillingAccountRepo{accounts: accounts}, nil, nil, nil, nil, nil, upstream, nil, cfg)
@@ -693,7 +693,7 @@ func enableCachedBillingReservations(t *testing.T, env *cachedBillingEnv, cache 
 	t.Helper()
 	cfg := &config.Config{}
 	cfg.Billing.InflightReservation.Enabled = true
-	bcs := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	bcs := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(bcs.Stop)
 	env.h.billingCacheService = bcs
 }

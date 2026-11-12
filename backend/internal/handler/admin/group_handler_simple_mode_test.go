@@ -34,11 +34,6 @@ func newSimpleModeGroupRouter(svc *stubAdminService) *gin.Engine {
 	r.POST("/groups/:id/composite-routes/preview", h.PreviewCompositeRoute)
 	r.PUT("/groups/:id/composite-routes/:route_id", h.UpdateCompositeRoute)
 	r.DELETE("/groups/:id/composite-routes/:route_id", h.DeleteCompositeRoute)
-	r.GET("/groups/:id/rate-multipliers", h.GetGroupRateMultipliers)
-	r.PUT("/groups/:id/rate-multipliers", h.BatchSetGroupRateMultipliers)
-	r.DELETE("/groups/:id/rate-multipliers", h.ClearGroupRateMultipliers)
-	r.PUT("/groups/:id/rpm-overrides", h.BatchSetGroupRPMOverrides)
-	r.DELETE("/groups/:id/rpm-overrides", h.ClearGroupRPMOverrides)
 	r.DELETE("/groups/:id", h.Delete)
 	return r
 }
@@ -309,11 +304,6 @@ func TestGroupHandlerSimpleModeBlocksAdvancedOperations(t *testing.T) {
 	}{
 		{http.MethodPost, "/groups/1/duplicate", ""},
 		{http.MethodGet, "/groups/1/model-allowlist-candidates", ""},
-		{http.MethodGet, "/groups/1/rate-multipliers", ""},
-		{http.MethodPut, "/groups/1/rate-multipliers", `{"entries":[]}`},
-		{http.MethodDelete, "/groups/1/rate-multipliers", ""},
-		{http.MethodPut, "/groups/1/rpm-overrides", `{"entries":[]}`},
-		{http.MethodDelete, "/groups/1/rpm-overrides", ""},
 		{http.MethodGet, "/groups/1/stats", ""},
 		{http.MethodGet, "/groups/1/api-keys", ""},
 		{http.MethodGet, "/groups/live-capability", ""},

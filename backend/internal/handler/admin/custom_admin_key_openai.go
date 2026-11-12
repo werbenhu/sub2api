@@ -99,11 +99,3 @@ func (h *OpenAIOAuthHandler) scopedOpenAIQuota(c *gin.Context, refresh bool) {
 	result.CachePersisted = h.quotaService.CacheResetCreditsSnapshot(c.Request.Context(), id, safe.RateLimitResetCredits) == nil
 	response.Success(c, result)
 }
-
-func (h *OpenAIOAuthHandler) scopedReferralDTO(c *gin.Context, e *service.OpenAIReferralEligibility) *service.OpenAIReferralEligibility {
-	if e == nil || adminaccess.RestrictedFromContext(c.Request.Context()) == nil {
-		return e
-	}
-	// 邀请资格只展示容量和流程字段，不回传上游自由文本及收件人资料。
-	return &service.OpenAIReferralEligibility{ShouldShow: e.ShouldShow, RemainingSendCapacity: e.RemainingSendCapacity, RemainingRewardCapacity: e.RemainingRewardCapacity, RequiresExplicitConfirmation: e.RequiresExplicitConfirmation, OfferID: e.OfferID, ProgramID: e.ProgramID, AvailableInvites: e.AvailableInvites, FetchedAt: e.FetchedAt}
-}

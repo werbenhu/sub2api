@@ -42,7 +42,6 @@ function tokenModel(overrides: Partial<PlazaModel> = {}): PlazaModel {
 function mountTable(
   models: PlazaModel[],
   rateMultiplier: number,
-  userRateMultiplier?: number | null,
   extraProps?: {
     imageRateIndependent?: boolean
     imageRateMultiplier?: number | null
@@ -53,23 +52,23 @@ function mountTable(
   }
 ) {
   return mount(PlazaModelPricingTable, {
-    props: { models, rateMultiplier, userRateMultiplier: userRateMultiplier ?? null, ...extraProps }
+    props: { models, rateMultiplier, ...extraProps }
   })
 }
 
 describe('PlazaModelPricingTable', () => {
   it.each([
-    { enabled: true, multiplier: 1, userRate: 0.05, expected: 1 },
-    { enabled: true, multiplier: 0.5, userRate: null, expected: 0.5 },
-    { enabled: true, multiplier: 0, userRate: 0.05, expected: 0 },
-    { enabled: true, multiplier: -1, userRate: null, expected: 0 },
-    { enabled: false, multiplier: 1, userRate: 0.05, expected: 0.05 },
-    { enabled: false, multiplier: 1, userRate: null, expected: 0.15 }
+    { enabled: true, multiplier: 1, expected: 1 },
+    { enabled: true, multiplier: 0.5, expected: 0.5 },
+    { enabled: true, multiplier: 0, expected: 0 },
+    { enabled: true, multiplier: -1, expected: 0 },
+    { enabled: false, multiplier: 1, expected: 0.15 },
+    { enabled: false, multiplier: 1, expected: 0.15 }
   ])('uses the video billing multiplier $expected when independent=$enabled', (tc) => {
     const model = tokenModel({ name: 'video-test', official_pricing: null })
     model.pricing!.billing_mode = 'video'
     model.pricing!.per_request_price = 2
-    const wrapper = mountTable([model], 0.15, tc.userRate, {
+    const wrapper = mountTable([model], 0.15, {
       imageRateIndependent: true,
       imageRateMultiplier: 9,
       videoRateIndependent: tc.enabled,
@@ -93,7 +92,7 @@ describe('PlazaModelPricingTable', () => {
       input_price: null, output_price: null, cache_write_price: null,
       cache_read_price: null, per_request_price: 2
     }]
-    const wrapper = mountTable([model], 0.15, 0.05, {
+    const wrapper = mountTable([model], 0.15, {
       videoRateIndependent: true, videoRateMultiplier: 0.5
     })
     expect(wrapper.text()).toContain('720p')
@@ -146,19 +145,6 @@ describe('PlazaModelPricingTable', () => {
     expect(text).toContain('$3.00')
     expect(text).toContain('$15.00')
     expect(text).toContain('0.5x')
-  })
-
-  it('用户专属倍率覆盖分组倍率,并划线展示原倍率', () => {
-    const wrapper = mountTable([tokenModel()], 1, 0.8)
-    const text = wrapper.text()
-    // 实付按 0.8:3 × 0.8 = 2.4
-    expect(text).toContain('$2.40')
-    expect(text).toContain('$12.00')
-    // 倍率列:原倍率划线 + 专属倍率
-    const struck = wrapper.find('td .line-through')
-    expect(struck.exists()).toBe(true)
-    expect(struck.text()).toBe('1x')
-    expect(text).toContain('0.8x')
   })
 
   it('模型按官方输出价从高到低排序,无官方价的排最后', () => {
@@ -427,7 +413,7 @@ describe('PlazaModelPricingTable', () => {
       },
       official_pricing: null
     })
-    const wrapper = mountTable([model], 0.1, null, {
+    const wrapper = mountTable([model], 0.1, {
       imageRateIndependent: true,
       imageRateMultiplier: 1
     })
@@ -456,7 +442,7 @@ describe('PlazaModelPricingTable', () => {
       },
       official_pricing: null
     })
-    const wrapper = mountTable([model], 0.1, null, { imageRateIndependent: false })
+    const wrapper = mountTable([model], 0.1, { imageRateIndependent: false })
     const text = wrapper.text()
     expect(text).toContain('$0.02')
     const rateCell = wrapper.findAll('tbody tr td').at(-1)!
@@ -733,7 +719,7 @@ describe('PlazaModelPricingTable 分时计价', () => {
   })
 
   it('分组启用高峰倍率时时段行 tooltip 追加高峰披露,价格与倍率列保持不含高峰的口径', () => {
-    const wrapper = mountTable([timePricedModel()], 0.8, null, {
+    const wrapper = mountTable([timePricedModel()], 0.8, {
       peakWindow: '14:00-18:00 ×1.5 (UTC+08:00)',
       peakRateMultiplier: 1.5
     })

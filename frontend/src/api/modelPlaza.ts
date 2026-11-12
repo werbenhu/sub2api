@@ -1,7 +1,7 @@
 /**
  * Model Plaza API（公开端点，可匿名访问）
  * 以分组为中心的模型价目：分组信息 + 模型渠道定价 + LiteLLM 官方参考价。
- * 带 token 请求时后端会额外返回专属分组与用户专属倍率。
+ * 带 token 请求时后端会额外返回专属分组。
  */
 
 import { apiClient } from './client'
@@ -63,17 +63,15 @@ export interface ModelPlazaGroup {
   /** 'standard' | 'subscription' */
   subscription_type: string
   rate_multiplier: number
-  /** 登录且管理员为该用户配了专属倍率时返回；生效倍率 = user_rate ?? rate_multiplier。 */
-  user_rate_multiplier?: number
   peak_rate_enabled: boolean
   peak_start: string
   peak_end: string
   peak_rate_multiplier: number
   is_exclusive: boolean
-  /** 生图独立倍率：true 时图片计费模型的实付倍率取 image_rate_multiplier，不取分组/专属倍率。 */
+  /** 生图独立倍率：true 时图片计费模型的实付倍率取 image_rate_multiplier，不取分组倍率。 */
   image_rate_independent: boolean
   image_rate_multiplier: number
-  /** 视频独立倍率开启时，覆盖视频模型的分组/用户专属倍率。 */
+  /** 视频独立倍率开启时，覆盖视频模型的分组倍率。 */
   video_rate_independent: boolean
   video_rate_multiplier: number
   /** 分组是否启用长上下文阶梯计费；false 时实付列只展示最低档，官方阶梯仅供参考。 */

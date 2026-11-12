@@ -175,7 +175,7 @@ func TestQueryUsageResetCreditCountPrecedence(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			svc := NewOpenAIQuotaService(repo, nil, tokenProvider, newQuotaRedirectingFactory(srv), nil)
+			svc := NewOpenAIQuotaService(repo, nil, tokenProvider, newQuotaRedirectingFactory(srv))
 			usage, err := svc.QueryUsage(context.Background(), 100)
 			require.NoError(t, err)
 			require.NotNil(t, usage)

@@ -190,7 +190,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelBillsCheaperResponseModel(
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
-	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 	tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
 	cheaper, pricier, cheaperCost, _ := orderedResponseBillingModels(t, svc.billingService, tokens, openAICheapFixtureModel, openAIPriceyFixtureModel)
 
@@ -231,7 +231,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelRejectsPricierResponseMode
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
-	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 	tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
 	cheaper, pricier, cheaperCost, _ := orderedResponseBillingModels(t, svc.billingService, tokens, openAICheapFixtureModel, openAIPriceyFixtureModel)
 
@@ -296,7 +296,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelSafeFallbacks(t *testing.T
 			usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 			userRepo := &openAIRecordUsageUserRepoStub{}
 			subRepo := &openAIRecordUsageSubRepoStub{}
-			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 			tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
 			cheaper, pricier, _, pricierCost := orderedResponseBillingModels(t, svc.billingService, tokens, openAICheapFixtureModel, openAIPriceyFixtureModel)
 
@@ -430,7 +430,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelRejectsUnidentifiedFamilyN
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
-	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 	tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
 	const forged = "totally-made-up-haiku-v9"
 
@@ -560,7 +560,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResponseModelSkippedForSearchSurcharged
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
-	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 	tokens := UsageTokens{InputTokens: 20, OutputTokens: 10}
 	cheaper, pricier, _, pricierCost := orderedResponseBillingModels(t, svc.billingService, tokens, openAICheapFixtureModel, openAIPriceyFixtureModel)
 
@@ -606,7 +606,7 @@ func TestGrokResponseAuditDefaultSourceKeepsCost(t *testing.T) {
 		usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 		userRepo := &openAIRecordUsageUserRepoStub{}
 		subRepo := &openAIRecordUsageSubRepoStub{}
-		svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+		svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 		err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 			Result: &OpenAIForwardResult{
 				RequestID:             "grok_audit_default_" + source + "_" + responseModel,
@@ -658,7 +658,7 @@ func TestGrokResponseAuditResponseModelRejectsUnknownHigherAndConflict(t *testin
 		usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 		userRepo := &openAIRecordUsageUserRepoStub{}
 		subRepo := &openAIRecordUsageSubRepoStub{}
-		svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+		svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 		err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 			Result: &OpenAIForwardResult{
 				RequestID:                     "grok_audit_explicit_" + baseline + "_" + responseModel,
@@ -685,7 +685,7 @@ func TestGrokResponseAuditResponseModelRejectsUnknownHigherAndConflict(t *testin
 	}
 
 	t.Run("unknown price", func(t *testing.T) {
-		svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+		svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 		require.False(t, svc.billingService.HasIdentifiedTokenPricing("grok-4.5-build"))
 		baselineCost, err := svc.billingService.CalculateCost("grok-4.3", tokens, 1)
 		require.NoError(t, err)
@@ -697,7 +697,7 @@ func TestGrokResponseAuditResponseModelRejectsUnknownHigherAndConflict(t *testin
 	})
 
 	t.Run("higher price", func(t *testing.T) {
-		svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+		svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 		require.True(t, svc.billingService.HasIdentifiedTokenPricing("grok-4.7"))
 		require.True(t, svc.billingService.HasIdentifiedTokenPricing("grok-4.7-fast"))
 		baselineCost, err := svc.billingService.CalculateCost("grok-4.7", tokens, 1)
@@ -710,7 +710,7 @@ func TestGrokResponseAuditResponseModelRejectsUnknownHigherAndConflict(t *testin
 	})
 
 	t.Run("conflict", func(t *testing.T) {
-		svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+		svc := newOpenAIRecordUsageServiceForTest(&openAIRecordUsageLogRepoStub{}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 		require.True(t, svc.billingService.HasIdentifiedTokenPricing("grok-4.3"))
 		baselineCost, err := svc.billingService.CalculateCost("grok-4.7", tokens, 1)
 		require.NoError(t, err)

@@ -39,10 +39,6 @@ type User struct {
 	UpdatedAt            time.Time
 	DeletedAt            *time.Time // 非 nil 表示用户已软删除
 
-	// GroupRates 用户专属分组倍率配置
-	// map[groupID]rateMultiplier
-	GroupRates map[int64]float64
-
 	// TOTP 双因素认证字段
 	TotpSecretEncrypted *string    // AES-256-GCM 加密的 TOTP 密钥
 	TotpEnabled         bool       // 是否启用 TOTP
@@ -55,17 +51,8 @@ type User struct {
 	BalanceNotifyExtraEmails   []NotifyEmailEntry
 	TotalRecharged             float64
 
-	// RPMLimit 用户级每分钟请求数上限（0 = 不限制）。仅在所用分组未设置 rpm_limit
-	// 且该 (用户, 分组) 无 rpm_override 时作为全局兜底生效，计数键 rpm:u:{userID}:{min}。
+	// RPMLimit 用户级每分钟请求数上限，0 表示不限制。
 	RPMLimit int
-
-	// UserGroupRPMOverride 来自 auth cache snapshot 的 (user, group) RPM 覆盖值。
-	// nil = 该 API Key 对应的 (user, group) 无 override；非 nil 时 checkRPM 直接使用，
-	// 避免每请求查 DB。字段不持久化到数据库。
-	UserGroupRPMOverride *int
-	// UserGroupRPMOverrideGroupID 是 snapshot 已成功查询 override 的分组 ID（0 = 未知）。
-	// 等于当前分组且 UserGroupRPMOverride 为 nil 时表示确认无 override，checkRPM 不再查 DB。
-	UserGroupRPMOverrideGroupID int64
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription

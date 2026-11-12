@@ -90,7 +90,7 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.Equal(t, "batch-session-123", batchImageDerefString(job.SessionID))
 	})
 
-	t.Run("combines user group image rate account rate discount and hold margin", func(t *testing.T) {
+	t.Run("combines group image rate account rate discount and hold margin", func(t *testing.T) {
 		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
 		groupID := int64(7)
 		accountMultiplier := 1.25
@@ -108,24 +108,22 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 				BatchImageHoldMultiplier:     0.6,
 			},
 		}}
-		userRate := 0.5
-		svc.UserGroupRateRepo = &publicBatchImageUserGroupRateRepo{rates: map[int64]*float64{groupID: &userRate}}
 
 		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID, SubscriptionID: 1}, validBatchImageSubmitRequest(), "")
 		require.NoError(t, err)
-		require.InDelta(t, 0.25, got.EstimatedCost, 1e-12)
+		require.InDelta(t, 1.0, got.EstimatedCost, 1e-12)
 
 		job := repo.jobs[got.ID]
 		require.InDelta(t, 0.25, job.BaseUnitPrice, 1e-12)
-		require.InDelta(t, 0.5, job.GroupRateMultiplier, 1e-12)
+		require.InDelta(t, 2.0, job.GroupRateMultiplier, 1e-12)
 		require.InDelta(t, 1.25, job.AccountRateMultiplier, 1e-12)
 		require.InDelta(t, 0.8, job.BatchDiscountMultiplier, 1e-12)
 		// 配置的 hold(0.6) < discount(0.8) 属于会导致结算死锁的脏数据，
 		// 快照时被钳制为 discount，保证 holdAmount >= 实际成本上限。
 		require.InDelta(t, 0.8, job.HoldMultiplier, 1e-12)
-		require.InDelta(t, 0.125, job.BillableUnitPrice, 1e-12)
-		require.InDelta(t, 0.125, job.HoldUnitPrice, 1e-12)
-		require.InDelta(t, 0.25, *job.HoldAmount, 1e-12)
+		require.InDelta(t, 0.5, job.BillableUnitPrice, 1e-12)
+		require.InDelta(t, 0.5, job.HoldUnitPrice, 1e-12)
+		require.InDelta(t, 1.0, *job.HoldAmount, 1e-12)
 	})
 
 	t.Run("uses configured group 1k image price for batch image base price", func(t *testing.T) {
@@ -949,16 +947,4 @@ func (r *publicBatchImageGroupRepo) GetByIDLite(_ context.Context, id int64) (*G
 	return nil, ErrGroupNotFound
 }
 
-type publicBatchImageUserGroupRateRepo struct {
-	rates map[int64]*float64
-}
-
-func (r *publicBatchImageUserGroupRateRepo) GetByUserAndGroup(_ context.Context, _ int64, groupID int64) (*float64, error) {
-	if r != nil && r.rates != nil {
-		return r.rates[groupID], nil
-	}
-	return nil, nil
-}
-
 var _ BatchImageGroupPricingRepository = (*publicBatchImageGroupRepo)(nil)
-var _ BatchImageUserGroupRateRepository = (*publicBatchImageUserGroupRateRepo)(nil)

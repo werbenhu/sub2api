@@ -45,7 +45,7 @@ func TestSyncBalanceCacheAfterDeduction_InvalidatesWhenBalanceFallsBelowReserve(
 	cache := &balanceEligibilityCacheStub{balance: 0.50}
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
-	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	svc := NewBillingCacheService(cache, nil, nil, nil, nil, cfg, nil)
 	t.Cleanup(svc.Stop)
 
 	newBalance := 0.005
@@ -62,7 +62,7 @@ func TestSyncBalanceCacheAfterDeduction_QueuesDeductWhenBalanceStillEligible(t *
 	cache := &balanceEligibilityCacheStub{balance: 1}
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
-	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	svc := NewBillingCacheService(cache, nil, nil, nil, nil, cfg, nil)
 	t.Cleanup(svc.Stop)
 
 	newBalance := 0.75

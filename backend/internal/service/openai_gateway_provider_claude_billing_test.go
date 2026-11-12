@@ -17,7 +17,7 @@ func TestOpenAIGatewayServiceRecordUsage_AggregatorClaudeUsesDefaultPricing(t *t
 				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 				userRepo := &openAIRecordUsageUserRepoStub{}
 				subRepo := &openAIRecordUsageSubRepoStub{}
-				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 				svc.resolver = NewModelPricingResolver(nil, svc.billingService)
 				group := &Group{ID: 1, Platform: platform, RateMultiplier: 1.1}
 				usage := OpenAIUsage{InputTokens: 1000, OutputTokens: 200}
@@ -46,7 +46,7 @@ func TestOpenAIGatewayServiceRecordUsage_CNAndOpenCodeClaudeRequireExplicitPrici
 			usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 			userRepo := &openAIRecordUsageUserRepoStub{}
 			subRepo := &openAIRecordUsageSubRepoStub{}
-			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+			svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 			svc.resolver = NewModelPricingResolver(nil, svc.billingService)
 			group := &Group{ID: 1, Platform: platform, RateMultiplier: 1.1}
 			usage := OpenAIUsage{InputTokens: 1000, OutputTokens: 200}
@@ -73,7 +73,7 @@ func TestOpenAIGatewayServiceRecordUsage_CNAndOpenCodeClaudeHonorExplicitPricing
 				usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 				userRepo := &openAIRecordUsageUserRepoStub{}
 				subRepo := &openAIRecordUsageSubRepoStub{}
-				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 				group := &Group{ID: 1, Platform: platform, RateMultiplier: 1.25}
 				inputPrice, outputPrice := 1e-6, 2e-6
 				pricing := ChannelModelPricing{

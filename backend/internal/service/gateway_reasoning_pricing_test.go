@@ -48,7 +48,7 @@ func TestRecordUsage_ReasoningPricingUsesForwardedEffort(t *testing.T) {
 					APIKey: apiKey, User: user, Account: account,
 				}))
 			} else {
-				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+				svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 				svc.resolver = NewModelPricingResolver(nil, svc.billingService)
 				require.NoError(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Subscription: &UserSubscription{ID: 1},
 					Result: &OpenAIForwardResult{

@@ -18,7 +18,7 @@ beforeEach(() => {
 })
 async function openDialog() {
   const wrapper = mount(UserAllowedGroupsModal, {
-    props: { show: false, user: { id: 1, email: 'user@example.com', allowed_groups: [7], group_rates: { 7: 0.5 } } as AdminUser },
+    props: { show: false, user: { id: 1, email: 'user@example.com', allowed_groups: [7] } as AdminUser },
     global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /><slot name="footer" /></div>' }, PlatformIcon: true } }
   })
   await wrapper.setProps({ show: true })
@@ -65,7 +65,7 @@ describe('UserAllowedGroupsModal load readiness', () => {
     await flushPromises()
     await wrapper.get('button.btn-primary').trigger('click')
     await flushPromises()
-    expect(mocks.update).toHaveBeenCalledWith(1, { allowed_groups: [7], restrict_public_groups: false, group_rates: { 7: 0.5 } })
+    expect(mocks.update).toHaveBeenCalledWith(1, { allowed_groups: [7], restrict_public_groups: false })
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
 })

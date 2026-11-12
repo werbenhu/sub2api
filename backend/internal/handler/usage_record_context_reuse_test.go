@@ -39,7 +39,7 @@ func TestGatewayUsageKeepsModelAfterGinContextReuse(t *testing.T) {
 			snapshot := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: []*service.Account{account}}, nil, nil, nil, nil)
 			usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 1)}
 			billingRepo := &compatStreamUsageBillingRepo{}
-			billingCache := service.NewBillingCacheService(newHandlerInflightCache(100), nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+			billingCache := service.NewBillingCacheService(newHandlerInflightCache(100), nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 			t.Cleanup(billingCache.Stop)
 			upstream := &compatStreamUsageUpstream{response: &http.Response{
 				StatusCode: http.StatusOK,
@@ -47,7 +47,7 @@ func TestGatewayUsageKeepsModelAfterGinContextReuse(t *testing.T) {
 				Header:     http.Header{"X-Request-Id": []string{"usage-context-reuse"}},
 			}}
 			gw := service.NewGatewayService(
-				nil, &fakeGroupRepo{group: group}, usageRepo, billingRepo, nil, nil, nil, nil, cfg,
+				nil, &fakeGroupRepo{group: group}, usageRepo, billingRepo, nil, nil, nil, cfg,
 				snapshot, nil, service.NewBillingService(cfg, nil), nil, billingCache, nil, upstream,
 				&service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			)

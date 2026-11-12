@@ -1305,7 +1305,6 @@ func (s *adminServiceImpl) deleteGroup(ctx context.Context, id int64, requireEmp
 	if err != nil {
 		return err
 	}
-	// 注意：user_group_rate_multipliers 表通过外键 ON DELETE CASCADE 自动清理
 
 	// 事务成功后，异步失效受影响用户的订阅缓存
 	if len(affectedUserIDs) > 0 && s.billingCacheService != nil {
@@ -1336,80 +1335,6 @@ func (s *adminServiceImpl) GetGroupAPIKeys(ctx context.Context, groupID int64, p
 		return nil, 0, err
 	}
 	return keys, result.Total, nil
-}
-
-func (s *adminServiceImpl) GetGroupRateMultipliers(ctx context.Context, groupID int64) ([]UserGroupRateEntry, error) {
-	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationMultiplier); err != nil {
-		return nil, err
-	}
-	if s.userGroupRateRepo == nil {
-		return nil, nil
-	}
-	return s.userGroupRateRepo.GetByGroupID(ctx, groupID)
-}
-
-func (s *adminServiceImpl) ClearGroupRateMultipliers(ctx context.Context, groupID int64) error {
-	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationMultiplier); err != nil {
-		return err
-	}
-	if s.userGroupRateRepo == nil {
-		return nil
-	}
-	return s.userGroupRateRepo.DeleteByGroupID(ctx, groupID)
-}
-
-func (s *adminServiceImpl) BatchSetGroupRateMultipliers(ctx context.Context, groupID int64, entries []GroupRateMultiplierInput) error {
-	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationMultiplier); err != nil {
-		return err
-	}
-	if s.userGroupRateRepo == nil {
-		return nil
-	}
-	for _, e := range entries {
-		if e.RateMultiplier <= 0 {
-			return fmt.Errorf("rate_multiplier must be > 0 (user_id=%d)", e.UserID)
-		}
-	}
-	return s.userGroupRateRepo.SyncGroupRateMultipliers(ctx, groupID, entries)
-}
-
-func (s *adminServiceImpl) ClearGroupRPMOverrides(ctx context.Context, groupID int64) error {
-	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationRPMOverride); err != nil {
-		return err
-	}
-	if s.userGroupRateRepo == nil {
-		return nil
-	}
-	if err := s.userGroupRateRepo.ClearGroupRPMOverrides(ctx, groupID); err != nil {
-		return err
-	}
-	// RPM override 已嵌入 auth cache snapshot (v7)，变更后必须失效相关缓存。
-	if s.authCacheInvalidator != nil {
-		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, groupID)
-	}
-	return nil
-}
-
-func (s *adminServiceImpl) BatchSetGroupRPMOverrides(ctx context.Context, groupID int64, entries []GroupRPMOverrideInput) error {
-	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationRPMOverride); err != nil {
-		return err
-	}
-	if s.userGroupRateRepo == nil {
-		return nil
-	}
-	for _, e := range entries {
-		if e.RPMOverride != nil && *e.RPMOverride < 0 {
-			return infraerrors.BadRequest("INVALID_RPM_OVERRIDE", fmt.Sprintf("rpm_override must be >= 0 (user_id=%d)", e.UserID))
-		}
-	}
-	if err := s.userGroupRateRepo.SyncGroupRPMOverrides(ctx, groupID, entries); err != nil {
-		return err
-	}
-	// RPM override 已嵌入 auth cache snapshot (v7)，变更后必须失效相关缓存。
-	if s.authCacheInvalidator != nil {
-		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, groupID)
-	}
-	return nil
 }
 
 func (s *adminServiceImpl) UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error {

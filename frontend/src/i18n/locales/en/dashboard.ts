@@ -662,7 +662,7 @@ export default {
     empty: 'No groups to display',
     loadFailed: 'Failed to load model plaza',
     noSearchResult: 'No matching models',
-    anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    anonymousHint: 'Sign in to see your exclusive groups',
     filters: {
       platformLabel: 'Platform',
       groupLabel: 'Group',

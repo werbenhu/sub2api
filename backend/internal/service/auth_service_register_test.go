@@ -778,7 +778,7 @@ func TestAuthService_Register_AssignsDefaultSubscriptions(t *testing.T) {
 	service.defaultAPIKeyCreator = NewAPIKeyService(
 		keyRepo, multiGroupUserRepoStub{},
 		multiGroupGroupRepoStub{groups: map[int64]*Group{11: {ID: 11, Status: StatusActive}, 12: {ID: 12, Status: StatusActive}}},
-		multiGroupSubscriptionRepoStub{groupIDs: []int64{11, 12}}, nil, nil, &config.Config{},
+		multiGroupSubscriptionRepoStub{groupIDs: []int64{11, 12}}, nil, &config.Config{},
 	)
 
 	_, user, err := service.Register(context.Background(), "default-sub@test.com", "password")

@@ -218,8 +218,6 @@ const mountView = () =>
         PlatformIcon: true,
         Icon: true,
         GroupCapacityBadge: true,
-        GroupRateMultipliersModal: true,
-        GroupRPMOverridesModal: true,
         ReasoningEffortPolicyFields: true,
         CodexManifestAccountsField: CodexManifestAccountsFieldStub,
         PricingEntryCard: true,

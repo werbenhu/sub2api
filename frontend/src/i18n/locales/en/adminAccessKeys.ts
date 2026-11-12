@@ -98,14 +98,6 @@ export default {
       "label": "Use an OpenAI reset to restore quota",
       "category": "OpenAI"
     },
-    "openai_dreferrals_dread": {
-      "label": "Read OpenAI referral eligibility and remaining invitations",
-      "category": "OpenAI"
-    },
-    "openai_dreferrals_dinvite": {
-      "label": "Send OpenAI invitation emails",
-      "category": "OpenAI"
-    },
     "accounts_doptions_dwrite": {
       "label": "Write OpenAI OAuth identity and connection options",
       "category": "Accounts"

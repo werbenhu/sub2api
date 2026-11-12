@@ -22,8 +22,8 @@ type OpenAIOAuthHandler struct {
 	openaiOAuthService *service.OpenAIOAuthService
 	adminService       service.AdminService
 	quotaService       openAIQuotaService
-	referralService    openAIReferralService
-	rateLimitService   openAIAccountStateRecoverer
+
+	rateLimitService openAIAccountStateRecoverer
 }
 
 type openAIQuotaService interface {
@@ -96,7 +96,6 @@ func NewOpenAIOAuthHandler(
 	// `== nil` capability guards below and panic instead of returning 400.
 	if quotaService != nil {
 		h.quotaService = quotaService
-		h.referralService = quotaService
 	}
 	if rateLimitService != nil {
 		h.rateLimitService = rateLimitService

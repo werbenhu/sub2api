@@ -25,7 +25,6 @@ func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo 
 		userRepo,
 		subRepo,
 		nil,
-		nil,
 		cfg,
 		nil,
 		nil,

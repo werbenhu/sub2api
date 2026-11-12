@@ -12,10 +12,8 @@ package service
 //   - D（用户售价倍率）固定在请求开始的 pricingAt：同一请求的全部 failover 与
 //     最终扣费共用同一 D（RecordUsage 的高峰因子同样取 pricingAt），一个请求
 //     不会中途变价。D 与计费完全同源：按请求真实计费分组（ctxkey.Group，即
-//     apiKey 自身分组；composite 请求为父分组）做 ResolveUserGroupRateMultiplier
-//     （用户-分组覆盖 ?? 分组默认）× Group.PeakMultiplierAt(pricingAt)，绝不在
-//     用户有覆盖时退回分组默认；开关与 margin/buffer 则始终取被调度
-//     openai/grok 分组。
+//     apiKey 自身分组；composite 请求为父分组）的分组倍率乘高峰因子。
+//     开关与 margin/buffer 始终取被调度的 openai/grok 分组。
 //   - U（上游成本倍率）取 accounts.rate_multiplier。倍率可以由运营者手工维护，
 //     也可以由上游倍率探测同步写回；利润门不再耦合探测协议、新鲜度或账号类型。
 //     0 是合法的免费上游倍率；nil、负数、NaN、Inf 属于非法数据并保守拒绝。
@@ -246,7 +244,7 @@ func (s *OpenAIGatewayService) resolveOpenAIProfitControlGate(ctx context.Contex
 		pricingAt = timezone.Now()
 	}
 	// D 与计费完全同源（RecordUsage 组合）：计费永远按 apiKey 自身分组
-	//（composite 请求即父分组）的"用户覆盖 ?? 分组默认 × 高峰因子"计算，
+	//（composite 请求即父分组）的"分组倍率 × 高峰因子"计算，
 	// 因此优先取认证中间件放入 ctx 的分组；ctx 中无有效分组（内部调用）时
 	// 退回调度分组组合，直连 openai 分组场景两者等价。
 	billingGroup := group
@@ -254,9 +252,7 @@ func (s *OpenAIGatewayService) resolveOpenAIProfitControlGate(ctx context.Contex
 		billingGroup = ctxGroup
 	}
 	downstream := billingGroup.RateMultiplier
-	if userID, _ := ctx.Value(ctxkey.UserID).(int64); userID > 0 {
-		downstream = s.ResolveUserGroupRateMultiplier(ctx, userID, billingGroup.ID, billingGroup.RateMultiplier)
-	}
+
 	downstream *= billingGroup.PeakMultiplierAt(pricingAt)
 
 	deduction := group.ProfitMinMargin + group.ProfitSafetyBuffer

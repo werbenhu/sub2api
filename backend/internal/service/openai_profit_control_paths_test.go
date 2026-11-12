@@ -229,23 +229,9 @@ func TestProfitControl_RateRecoveryReadmitsAccount(t *testing.T) {
 	}
 }
 
-type profitControlUserRateRepo struct {
-	UserGroupRateRepository
-	rate *float64
-}
-
-func (r profitControlUserRateRepo) GetByUserAndGroup(context.Context, int64, int64) (*float64, error) {
-	return r.rate, nil
-}
-
-// D 必须取请求用户的真实倍率：有用户覆盖时用覆盖值，绝不退回分组默认。
-func TestProfitControl_GateUsesUserOverrideRate(t *testing.T) {
-	override := 0.5
-	svc := &OpenAIGatewayService{
-		userGroupRateResolver: newUserGroupRateResolver(
-			profitControlUserRateRepo{rate: &override}, nil, time.Minute, nil, "test.profit",
-		),
-	}
+// D 使用计费分组的倍率。
+func TestProfitControl_GateUsesGroupRate(t *testing.T) {
+	svc := &OpenAIGatewayService{}
 	groupID := int64(7)
 	group := profitControlTestGroup(groupID, 0, 0)
 	group.RateMultiplier = 2.0
@@ -253,7 +239,7 @@ func TestProfitControl_GateUsesUserOverrideRate(t *testing.T) {
 	ctx := context.WithValue(profitControlTestCtx(group), ctxkey.UserID, int64(42))
 	gate := svc.resolveOpenAIProfitControlGate(ctx, &groupID)
 	require.NotNil(t, gate)
-	require.InDelta(t, 0.5, gate.threshold, 1e-12, "阈值必须基于用户覆盖倍率 0.5，而不是分组默认 2.0")
+	require.InDelta(t, 2.0, gate.threshold, 1e-12, "阈值使用分组倍率 2.0")
 
 	// 无用户身份（内部调用）时按分组默认倍率计算。
 	gate = svc.resolveOpenAIProfitControlGate(profitControlTestCtx(group), &groupID)

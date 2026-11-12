@@ -167,8 +167,6 @@ function mountView() {
         PlatformIcon: true,
         Icon: true,
         GroupCapacityBadge: true,
-        GroupRateMultipliersModal: true,
-        GroupRPMOverridesModal: true,
         VueDraggable: true
       }
     }

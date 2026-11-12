@@ -93,7 +93,7 @@ func (s *wsGroupPricingAPIKeyRepoStub) lookupCount() int {
 }
 
 func newWSGroupPricingAPIKeyService(repo *wsGroupPricingAPIKeyRepoStub) *service.APIKeyService {
-	return service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, &config.Config{})
+	return service.NewAPIKeyService(repo, nil, nil, nil, nil, &config.Config{})
 }
 
 func TestOpenAIResponsesWebSocket_GroupRateChangeAppliesToNextTurn(t *testing.T) {

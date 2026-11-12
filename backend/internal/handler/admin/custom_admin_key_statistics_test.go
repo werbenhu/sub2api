@@ -53,20 +53,6 @@ func TestScopedAdminStatisticsRejectBeforeCacheOrService(t *testing.T) {
 	}
 }
 
-func TestScopedAdminOpenAIRejectsBeforeUpstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := &scopedStatisticsAccounts{accounts: map[int64]*service.Account{1: {ID: 1, Platform: "openai", Type: "oauth", GroupIDs: []int64{1}}}}
-	stub := &referralHandlerStub{}
-	h := &OpenAIOAuthHandler{adminService: svc, referralService: stub}
-	r := gin.New()
-	r.Use(func(c *gin.Context) { statisticsContext(c, "accounts.read") })
-	r.POST("/:id/referrals/invite", h.SendReferralInvite)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("POST", "/1/referrals/invite", strings.NewReader(`{"email":"friend@example.com","program_id":"codex_referral_consumer","confirmed":true}`)))
-	require.Equal(t, 404, w.Code, w.Body.String())
-	require.Zero(t, stub.sends)
-}
-
 func TestScopedAdminUsageProjectionKeepsPlatformQuotaAndHidesCosts(t *testing.T) {
 	a := &service.Account{ID: 1, Platform: "openai", Type: "oauth", GroupIDs: []int64{1}}
 	u := &service.UsageInfo{FiveHour: &service.UsageProgress{Utilization: 25, WindowStats: &service.WindowStats{Cost: 123}}, SevenDaySonnet: &service.UsageProgress{Utilization: 30}, GeminiProDaily: &service.UsageProgress{Utilization: 40}, AntigravityQuota: map[string]*service.AntigravityModelQuota{"model": {Utilization: 50}}, Error: "TOKEN_SECRET", ValidationURL: "URL_SECRET", ForbiddenReason: "IDENTITY_SECRET"}
@@ -158,50 +144,30 @@ func TestScopedAdminAccountScopeAndShadowSource(t *testing.T) {
 }
 
 func TestScopedAdminMutationResponseRequiresReadPermission(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	for _, read := range []bool{false, true} {
-		for _, kind := range []string{"reset", "invite"} {
-			t.Run(fmt.Sprintf("%s/read=%v", kind, read), func(t *testing.T) {
-				count := 2
-				svc := &scopedStatisticsAccounts{accounts: map[int64]*service.Account{1: {ID: 1, Platform: "openai", Type: "oauth", GroupIDs: []int64{1}}}}
-				quota := &openAIQuotaWorkflowStub{resetResult: &service.OpenAIQuotaResetResult{Code: "success"}, queryResult: &service.OpenAIQuotaUsage{RateLimitResetCredits: &service.OpenAIRateLimitResetCredits{AvailableCount: 3}, Email: "IDENTITY_SECRET"}}
-				referral := &referralHandlerStub{eligibility: &service.OpenAIReferralEligibility{ShouldShow: true, AvailableInvites: &count}}
-				h := &OpenAIOAuthHandler{adminService: svc, quotaService: quota, referralService: referral, rateLimitService: &openAIAccountStateRecovererStub{}}
-				action, readAction, path := "openai.quota.reset", "openai.quota.read", "/1/reset"
-				if kind == "invite" {
-					action, readAction, path = "openai.referrals.invite", "openai.referrals.read", "/1/invite"
-				}
-				r := gin.New()
-				r.Use(func(c *gin.Context) {
-					statisticsContext(c, action)
-					if read {
-						p := adminaccess.FromContext(c.Request.Context())
-						p.Policy.Rules[0].Permissions = append(p.Policy.Rules[0].Permissions, readAction)
-					}
-				})
-				r.POST("/:id/reset", h.ResetQuota)
-				r.POST("/:id/invite", h.SendReferralInvite)
-				w := httptest.NewRecorder()
-				r.ServeHTTP(w, httptest.NewRequest("POST", path, strings.NewReader(`{"email":"friend@example.com","program_id":"codex_referral_consumer","confirmed":true}`)))
-				require.Equal(t, 200, w.Code, w.Body.String())
-				require.NotContains(t, w.Body.String(), "IDENTITY_SECRET")
-				if kind == "reset" {
-					require.Equal(t, 1, quota.resetCalls)
-					if read {
-						require.Contains(t, w.Body.String(), "available_count")
-					} else {
-						require.NotContains(t, w.Body.String(), "available_count")
-					}
-				} else {
-					require.Equal(t, 1, referral.sends)
-					if read {
-						require.Contains(t, w.Body.String(), "available_invites")
-					} else {
-						require.NotContains(t, w.Body.String(), "available_invites")
-					}
+		t.Run(fmt.Sprint(read), func(t *testing.T) {
+			a := &service.Account{ID: 1, Platform: "openai", Type: "oauth", GroupIDs: []int64{1}}
+			quota := &openAIQuotaWorkflowStub{resetResult: &service.OpenAIQuotaResetResult{Code: "success"}, queryResult: &service.OpenAIQuotaUsage{Email: "IDENTITY_SECRET", RateLimitResetCredits: &service.OpenAIRateLimitResetCredits{AvailableCount: 2}}}
+			h := &OpenAIOAuthHandler{adminService: &scopedStatisticsAccounts{accounts: map[int64]*service.Account{1: a}}, quotaService: quota, rateLimitService: &openAIAccountStateRecovererStub{}}
+			r := gin.New()
+			r.Use(func(c *gin.Context) {
+				statisticsContext(c, "openai.quota.reset")
+				if read {
+					adminaccess.FromContext(c.Request.Context()).Policy.Rules[0].Permissions = append(adminaccess.FromContext(c.Request.Context()).Policy.Rules[0].Permissions, "openai.quota.read")
 				}
 			})
-		}
+			r.POST("/:id/reset", h.ResetQuota)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest("POST", "/1/reset", nil))
+			require.Equal(t, 200, w.Code, w.Body.String())
+			require.NotContains(t, w.Body.String(), "IDENTITY_SECRET")
+			require.Equal(t, 1, quota.resetCalls)
+			if read {
+				require.Contains(t, w.Body.String(), "available_count")
+			} else {
+				require.NotContains(t, w.Body.String(), "available_count")
+			}
+		})
 	}
 }
 

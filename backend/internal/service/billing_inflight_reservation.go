@@ -391,7 +391,7 @@ type inflightEstimateDeps struct {
 	billing        *BillingService
 	resolver       *ModelPricingResolver
 	resolveMapping func(ctx context.Context, groupID int64, model string) ChannelMappingResult
-	userGroupRate  func(ctx context.Context, userID, groupID int64, groupDefault float64) float64
+
 	// accountMappedModels 返回调度器可选账号对 model 的账号级映射结果（去重，不含 model 本身）。
 	// 准入时账号尚未选定，计费侧 billableModelWithFallback 会回退到实际转发模型（UpstreamModel，
 	// 即账号映射后的模型），因此这里取所有候选映射模型的最高估算。
@@ -495,9 +495,6 @@ func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, 
 	}
 	if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil {
 		rate = apiKey.Group.RateMultiplier
-		if d.userGroupRate != nil && apiKey.User != nil {
-			rate = d.userGroupRate(ctx, apiKey.User.ID, *apiKey.GroupID, rate)
-		}
 	}
 	return computePeakAwareMultipliers(apiKey, rate, timezone.Now())
 }
@@ -716,7 +713,6 @@ func (s *GatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
 	}
-	d.userGroupRate = s.getUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
 		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
@@ -747,7 +743,6 @@ func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
 	}
-	d.userGroupRate = s.ResolveUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
 		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(

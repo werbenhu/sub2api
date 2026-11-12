@@ -133,7 +133,7 @@ func TestAdminService_CreateUser_AssignsDefaultSubscriptions(t *testing.T) {
 	keyRepo := &multiGroupAPIKeyRepoStub{}
 	keyService := NewAPIKeyService(keyRepo, multiGroupUserRepoStub{}, multiGroupGroupRepoStub{groups: map[int64]*Group{
 		5: {ID: 5, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
-	}}, multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, nil, &config.Config{})
+	}}, multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, &config.Config{})
 	svc := &adminServiceImpl{
 		userRepo:             repo,
 		settingService:       settingService,
@@ -167,7 +167,7 @@ func TestAdminService_CreateUser_PreservesStandardAllowedGroup(t *testing.T) {
 			5: {ID: 5, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
 			7: {ID: 7, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard, IsExclusive: true},
 		}},
-		multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, nil, &config.Config{})
+		multiGroupSubscriptionRepoStub{groupIDs: []int64{5}}, nil, &config.Config{})
 	svc := &adminServiceImpl{
 		userRepo:             repo,
 		settingService:       settingService,

@@ -40,11 +40,11 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*service.Account{account}}}
 	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
 	gatewayService := service.NewGatewayService(
-		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, nil,
+		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil,
 		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billingCacheService := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billingCacheService := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billingCacheService.Stop)
 	h := &GatewayHandler{
 		gatewayService:      gatewayService,

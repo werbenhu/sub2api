@@ -1110,7 +1110,7 @@ func TestOpenAIGatewayServiceRecordUsage_AccountStatsLongContextFollowsAccountGa
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-			svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+			svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 			swapInOpenAILadderCatalog(t, svc)
 			svc.channelService = newTestChannelServiceForStats(t, &Channel{ID: 1, Status: StatusActive}, 1, PlatformOpenAI)
 			apiKey := openAIRecordUsageAPIKeyWithGroup(svc, 1015, tt.groupLongContext)

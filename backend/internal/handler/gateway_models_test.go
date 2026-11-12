@@ -100,7 +100,7 @@ func newGatewayModelsHandlerForTest(repo service.AccountRepository, routeRepo ..
 	return &GatewayHandler{
 		gatewayService: service.NewGatewayService(
 			repo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, resolver, nil, nil,
 		),
 	}
@@ -194,7 +194,7 @@ func TestGatewayModelsMergesAllAPIKeyGroups(t *testing.T) {
 		2: {ID: 2, Platform: service.PlatformComposite, Status: service.StatusActive},
 	}}
 	h := &GatewayHandler{gatewayService: service.NewGatewayService(
-		accounts, groupRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		accounts, groupRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewCompositeRouteResolver(routes), nil, nil,
 	)}
 	recorder := httptest.NewRecorder()

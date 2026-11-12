@@ -59,7 +59,6 @@ describe('User UI request marker', () => {
     '/keys',
     '/keys/12',
     '/groups/available',
-    '/groups/rates',
     '/channels/available',
     '/usage',
     '/usage/stats',

@@ -60,7 +60,7 @@ func TestAPIKeyCreateDefaultsToAllActiveSubscriptionGroups(t *testing.T) {
 		2: {ID: 2, Status: StatusActive, SubscriptionType: SubscriptionTypeSubscription},
 	}
 	keyRepo := &multiGroupAPIKeyRepoStub{}
-	svc := NewAPIKeyService(keyRepo, multiGroupUserRepoStub{}, multiGroupGroupRepoStub{groups: groups}, multiGroupSubscriptionRepoStub{groupIDs: []int64{1, 2}}, nil, nil, &config.Config{})
+	svc := NewAPIKeyService(keyRepo, multiGroupUserRepoStub{}, multiGroupGroupRepoStub{groups: groups}, multiGroupSubscriptionRepoStub{groupIDs: []int64{1, 2}}, nil, &config.Config{})
 
 	key, err := svc.Create(context.Background(), 42, CreateAPIKeyRequest{Name: "internal"})
 
@@ -78,7 +78,7 @@ func TestAPIKeyResolveGroupForModelUsesExplicitRoute(t *testing.T) {
 	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{routes: []CompositeModelRoute{{
 		ID: 1, GroupID: 2, PublicModel: "internal-shared", TargetPlatform: PlatformOpenAI, Enabled: true,
 	}}})
-	svc := NewAPIKeyService(nil, nil, multiGroupGroupRepoStub{groups: groups}, multiGroupSubscriptionRepoStub{}, nil, nil, nil)
+	svc := NewAPIKeyService(nil, nil, multiGroupGroupRepoStub{groups: groups}, multiGroupSubscriptionRepoStub{}, nil, nil)
 	svc.SetCompositeRouteResolver(resolver)
 	key := &APIKey{UserID: 42, GroupID: int64Pointer(1), GroupIDs: []int64{1, 2}}
 
@@ -93,12 +93,12 @@ func TestAPIKeyResolveGroupForModelUsesDetectorPlatformForStandardGroups(t *test
 		2: {ID: 2, Platform: PlatformKimi, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard},
 	}
 	resolver := NewCompositeRouteResolver(compositeRouteRepoStub{})
-	svc := NewAPIKeyService(nil, nil, multiGroupGroupRepoStub{groups: groups}, nil, nil, nil, nil)
+	svc := NewAPIKeyService(nil, nil, multiGroupGroupRepoStub{groups: groups}, nil, nil, nil)
 	svc.SetCompositeRouteResolver(resolver)
 	key := &APIKey{
-		UserID: 42,
-		User:   &User{ID: 42},
-		GroupID: int64Pointer(1),
+		UserID:   42,
+		User:     &User{ID: 42},
+		GroupID:  int64Pointer(1),
 		GroupIDs: []int64{1, 2},
 	}
 
@@ -116,7 +116,7 @@ func TestAPIKeyDefaultsIncludeAuthorizedStandardGroups(t *testing.T) {
 	userRepo := multiGroupUserRepoWithAllowedGroups{user: &User{ID: 42, Status: StatusActive, AllowedGroups: []int64{2}}}
 	groupRepo := multiGroupGroupRepoStub{groups: groups}
 	subRepo := multiGroupSubscriptionRepoStub{groupIDs: []int64{1}}
-	svc := NewAPIKeyService(keyRepo, userRepo, groupRepo, subRepo, nil, nil, &config.Config{})
+	svc := NewAPIKeyService(keyRepo, userRepo, groupRepo, subRepo, nil, &config.Config{})
 
 	key, err := svc.Create(context.Background(), 42, CreateAPIKeyRequest{Name: "internal"})
 

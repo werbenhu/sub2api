@@ -27,8 +27,7 @@ func scopedUserFixture() *service.User {
 	return &service.User{
 		ID: 7, Email: "user@example.com", Username: "测试用户", Role: "user", Status: "active",
 		Balance: 123, FrozenBalance: 12, TotalRecharged: 456, Notes: "内部敏感备注",
-		AllowedGroups: []int64{3}, RestrictPublicGroups: true, GroupRates: map[int64]float64{3: 0.8},
-		APIKeys: []service.APIKey{{ID: 8, Key: "绝不返回的用户密钥"}},
+		AllowedGroups: []int64{3}, RestrictPublicGroups: true, APIKeys: []service.APIKey{{ID: 8, Key: "绝不返回的用户密钥"}},
 		Subscriptions: []service.UserSubscription{{ID: 2, DailyUsageUSD: 11, WeeklyUsageUSD: 22, MonthlyUsageUSD: 33,
 			Group: &service.Group{ID: 3, Name: "内部定价分组", RateMultiplier: 2}}},
 	}

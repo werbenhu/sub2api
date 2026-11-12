@@ -98,14 +98,6 @@ export default {
       "label": "消耗 OpenAI 重置次数恢复额度",
       "category": "OpenAI"
     },
-    "openai_dreferrals_dread": {
-      "label": "查询 OpenAI 邀请资格与次数",
-      "category": "OpenAI"
-    },
-    "openai_dreferrals_dinvite": {
-      "label": "发送 OpenAI 邀请邮件",
-      "category": "OpenAI"
-    },
     "accounts_doptions_dwrite": {
       "label": "写入 OpenAI OAuth 身份与连接选项",
       "category": "账户"

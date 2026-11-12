@@ -16,7 +16,7 @@ import (
 
 func TestGrokVoiceRequestBodyMemoryOverload(t *testing.T) {
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billing := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billing := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billing.Stop)
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},

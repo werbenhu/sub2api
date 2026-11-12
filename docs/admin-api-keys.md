@@ -39,8 +39,6 @@
 | `groups.capacity.read` | 所选启用分组的容量；统计整个分组，不按账户类型裁剪 |
 | `openai.quota.read` | OpenAI 额度、点数及重置次数查询和展示快照刷新 |
 | `openai.quota.reset` | 执行 OpenAI 上游额度重置，可能消耗可用次数 |
-| `openai.referrals.read` | 查询邀请资格与名额并刷新展示快照 |
-| `openai.referrals.invite` | 实际发送邀请；不由邀请查询权限附带授予 |
 
 `openai.tokens.refresh` 是独立的**全站权限**：仅刷新调用方提交的 OpenAI 令牌并返回新令牌，不读取服务器已有账户凭证。指定代理必须存在、启用且未过期；无效代理不会静默回退为直连。它与 `accounts.refresh`（刷新已保存的授权账户凭证）不同。
 

@@ -29,7 +29,6 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -59,7 +58,6 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
  - Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`
 	maxCacheControlBlocks = 4 // Anthropic API 允许的最大 cache_control 块数量
 
-	defaultUserGroupRateCacheTTL           = 30 * time.Second
 	defaultModelsListCacheTTL              = 15 * time.Second
 	postUsageBillingTimeout                = 15 * time.Second
 	claudeCodeNoopDeltaKeepaliveMinVersion = "2.1.193"
@@ -97,12 +95,6 @@ var (
 	windowCostPrefetchFallbackTotal  atomic.Int64
 	windowCostPrefetchErrorTotal     atomic.Int64
 
-	userGroupRateCacheHitTotal      atomic.Int64
-	userGroupRateCacheMissTotal     atomic.Int64
-	userGroupRateCacheLoadTotal     atomic.Int64
-	userGroupRateCacheSFSharedTotal atomic.Int64
-	userGroupRateCacheFallbackTotal atomic.Int64
-
 	modelsListCacheHitTotal   atomic.Int64
 	modelsListCacheMissTotal  atomic.Int64
 	modelsListCacheStoreTotal atomic.Int64
@@ -129,14 +121,6 @@ func GatewayWindowCostPrefetchStats() (cacheHit, cacheMiss, batchSQL, fallback, 
 		windowCostPrefetchBatchSQLTotal.Load(),
 		windowCostPrefetchFallbackTotal.Load(),
 		windowCostPrefetchErrorTotal.Load()
-}
-
-func GatewayUserGroupRateCacheStats() (cacheHit, cacheMiss, load, singleflightShared, fallback int64) {
-	return userGroupRateCacheHitTotal.Load(),
-		userGroupRateCacheMissTotal.Load(),
-		userGroupRateCacheLoadTotal.Load(),
-		userGroupRateCacheSFSharedTotal.Load(),
-		userGroupRateCacheFallbackTotal.Load()
 }
 
 func GatewayModelsListCacheStats() (cacheHit, cacheMiss, store int64) {
@@ -513,13 +497,6 @@ func derefGroupID(groupID *int64) int64 {
 	return *groupID
 }
 
-func resolveUserGroupRateCacheTTL(cfg *config.Config) time.Duration {
-	if cfg == nil || cfg.Gateway.UserGroupRateCacheTTLSeconds <= 0 {
-		return defaultUserGroupRateCacheTTL
-	}
-	return time.Duration(cfg.Gateway.UserGroupRateCacheTTLSeconds) * time.Second
-}
-
 func resolveModelsListCacheTTL(cfg *config.Config) time.Duration {
 	if cfg == nil || cfg.Gateway.ModelsListCacheTTLSeconds <= 0 {
 		return defaultModelsListCacheTTL
@@ -772,30 +749,28 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
-	accountRepo           AccountRepository
-	groupRepo             GroupRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	userGroupRateRepo     UserGroupRateRepository
-	cache                 GatewayCache
-	digestStore           *DigestSessionStore
-	cfg                   *config.Config
-	schedulerSnapshot     *SchedulerSnapshotService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	identityService       *IdentityService
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	concurrencyService    *ConcurrencyService
-	claudeTokenProvider   *ClaudeTokenProvider
-	sessionLimitCache     SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
-	rpmCache              RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
-	userGroupRateResolver *userGroupRateResolver
-	userGroupRateCache    *gocache.Cache
-	userGroupRateSF       singleflight.Group
+	accountRepo      AccountRepository
+	groupRepo        GroupRepository
+	usageLogRepo     UsageLogRepository
+	usageBillingRepo UsageBillingRepository
+	userRepo         UserRepository
+	userSubRepo      UserSubscriptionRepository
+
+	cache               GatewayCache
+	digestStore         *DigestSessionStore
+	cfg                 *config.Config
+	schedulerSnapshot   *SchedulerSnapshotService
+	billingService      *BillingService
+	rateLimitService    *RateLimitService
+	billingCacheService *BillingCacheService
+	identityService     *IdentityService
+	httpUpstream        HTTPUpstream
+	deferredService     *DeferredService
+	concurrencyService  *ConcurrencyService
+	claudeTokenProvider *ClaudeTokenProvider
+	sessionLimitCache   SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
+	rpmCache            RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
+
 	modelsListCache       *gocache.Cache
 	modelsListCacheTTL    time.Duration
 	settingService        *SettingService
@@ -819,7 +794,6 @@ func NewGatewayService(
 	usageBillingRepo UsageBillingRepository,
 	userRepo UserRepository,
 	userSubRepo UserSubscriptionRepository,
-	userGroupRateRepo UserGroupRateRepository,
 	cache GatewayCache,
 	cfg *config.Config,
 	schedulerSnapshot *SchedulerSnapshotService,
@@ -842,7 +816,6 @@ func NewGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *GatewayService {
-	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
 
 	svc := &GatewayService{
@@ -852,7 +825,6 @@ func NewGatewayService(
 		usageBillingRepo:      usageBillingRepo,
 		userRepo:              userRepo,
 		userSubRepo:           userSubRepo,
-		userGroupRateRepo:     userGroupRateRepo,
 		cache:                 cache,
 		digestStore:           digestStore,
 		cfg:                   cfg,
@@ -867,7 +839,6 @@ func NewGatewayService(
 		claudeTokenProvider:   claudeTokenProvider,
 		sessionLimitCache:     sessionLimitCache,
 		rpmCache:              rpmCache,
-		userGroupRateCache:    gocache.New(userGroupRateTTL, time.Minute),
 		settingService:        settingService,
 		modelsListCache:       gocache.New(modelsListTTL, time.Minute),
 		modelsListCacheTTL:    modelsListTTL,
@@ -882,13 +853,6 @@ func NewGatewayService(
 	if compositeResolver != nil {
 		compositeResolver.SetModelOwnershipResolver(svc.resolveCompositeModelOwnership)
 	}
-	svc.userGroupRateResolver = newUserGroupRateResolver(
-		userGroupRateRepo,
-		svc.userGroupRateCache,
-		userGroupRateTTL,
-		&svc.userGroupRateSF,
-		"service.gateway",
-	)
 	svc.debugModelRouting.Store(parseDebugEnvBool(os.Getenv("SUB2API_DEBUG_MODEL_ROUTING")))
 	svc.debugClaudeMimic.Store(parseDebugEnvBool(os.Getenv("SUB2API_DEBUG_CLAUDE_MIMIC")))
 	if path := strings.TrimSpace(os.Getenv(debugGatewayBodyEnv)); path != "" {

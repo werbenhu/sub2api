@@ -90,19 +90,6 @@ func (*scopedRouteCapacityGroups) ListScopedAdminCapacityGroupIDs(context.Contex
 	return []int64{1}, nil
 }
 
-type scopedRouteReferrals struct{ queries, sends atomic.Int64 }
-
-func (s *scopedRouteReferrals) QueryEligibility(context.Context, service.OpenAIReferralCall) (*service.OpenAIReferralEligibility, error) {
-	s.queries.Add(1)
-	count := 2
-	confirm := true
-	return &service.OpenAIReferralEligibility{ShouldShow: true, RemainingSendCapacity: &count, RequiresExplicitConfirmation: &confirm}, nil
-}
-func (s *scopedRouteReferrals) SendInvite(context.Context, service.OpenAIReferralCall, string) error {
-	s.sends.Add(1)
-	return nil
-}
-
 func TestScopedAdminRegisteredStatisticsAndOpenAIRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cases := []struct {
@@ -117,11 +104,16 @@ func TestScopedAdminRegisteredStatisticsAndOpenAIRoutes(t *testing.T) {
 		{"openai.quota.read", "GET", "/openai/accounts/1/quota", "", 200},
 		{"openai.quota.read", "POST", "/openai/accounts/1/quota/refresh", "", 200},
 		{"openai.quota.reset", "POST", "/openai/accounts/1/reset-quota", "", 200},
-		{"openai.referrals.read", "POST", "/openai/accounts/1/referrals/refresh", "", 200},
-		{"openai.referrals.invite", "POST", "/openai/accounts/1/referrals/invite", `{"email":"friend@example.com","program_id":"codex_referral_consumer","confirmed":true}`, 200},
 		{"groups.list.read", "GET", "/groups", "", 200},
 		{"groups.capacity.read", "GET", "/groups/capacity-summary", "", 200},
 		{"openai.tokens.refresh", "POST", "/openai/refresh-token", `{}`, 400},
+		{"accounts.read", "POST", "/openai/accounts/1/referrals/refresh", "", 404},
+		{"accounts.read", "POST", "/openai/accounts/1/referrals/invite", `{"email":"friend@example.com"}`, 404},
+		{"accounts.read", "GET", "/groups/1/rate-multipliers", "", 404},
+		{"accounts.read", "PUT", "/groups/1/rate-multipliers", `{"entries":[]}`, 404},
+		{"accounts.read", "DELETE", "/groups/1/rate-multipliers", "", 404},
+		{"accounts.read", "PUT", "/groups/1/rpm-overrides", `{"entries":[]}`, 404},
+		{"accounts.read", "DELETE", "/groups/1/rpm-overrides", "", 404},
 	}
 	for _, tc := range cases {
 		for _, allowed := range []bool{false, true} {
@@ -143,7 +135,6 @@ func TestScopedAdminRegisteredStatisticsAndOpenAIRoutes(t *testing.T) {
 				admin := &scopedRouteStatisticsAccounts{scopedRouteAccounts: scopedRouteAccounts{t: t}}
 				repo := &scopedRouteStatisticsRepo{admin: admin}
 				logs := &scopedRouteStatisticsLogs{}
-				referrals := &scopedRouteReferrals{}
 				var calls atomic.Int64
 				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					calls.Add(1)
@@ -167,7 +158,7 @@ func TestScopedAdminRegisteredStatisticsAndOpenAIRoutes(t *testing.T) {
 						}
 					}), nil
 				}
-				quota := service.NewOpenAIQuotaService(repo, nil, service.NewOpenAITokenProvider(repo, nil, nil), factory, referrals)
+				quota := service.NewOpenAIQuotaService(repo, nil, service.NewOpenAITokenProvider(repo, nil, nil), factory)
 				usage := service.NewAccountUsageService(repo, logs, nil, nil, nil, nil, nil, quota, service.NewUsageCache(), nil, nil)
 				accounts := adminhandler.NewAccountHandler(admin, nil, nil, nil, nil, nil, nil, usage, nil, nil, nil, nil, nil, nil)
 				openai := adminhandler.NewOpenAIOAuthHandler(nil, admin, quota, nil)
@@ -180,7 +171,7 @@ func TestScopedAdminRegisteredStatisticsAndOpenAIRoutes(t *testing.T) {
 				recorder := httptest.NewRecorder()
 				router.ServeHTTP(recorder, request)
 				want := 403
-				if allowed {
+				if allowed || tc.want == http.StatusNotFound {
 					want = tc.want
 				}
 				require.Equal(t, want, recorder.Code, recorder.Body.String())
@@ -188,11 +179,6 @@ func TestScopedAdminRegisteredStatisticsAndOpenAIRoutes(t *testing.T) {
 				if !allowed {
 					require.Zero(t, calls.Load())
 					require.Zero(t, logs.reads.Load())
-					require.Zero(t, referrals.queries.Load())
-					require.Zero(t, referrals.sends.Load())
-				}
-				if tc.permission != "openai.referrals.invite" {
-					require.Zero(t, referrals.sends.Load())
 				}
 			})
 		}

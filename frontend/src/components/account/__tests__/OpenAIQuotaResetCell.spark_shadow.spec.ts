@@ -8,8 +8,6 @@ import { refreshOpenAIQuota, resetOpenAIQuota, type OpenAIQuotaRefreshResult } f
 vi.mock('@/api/admin/accounts', () => ({
   refreshOpenAIQuota: vi.fn(),
   resetOpenAIQuota: vi.fn(),
-  refreshOpenAIReferrals: vi.fn(),
-  sendOpenAIReferralInvite: vi.fn(),
 }))
 
 vi.mock('vue-i18n', async () => {

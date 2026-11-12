@@ -59,7 +59,7 @@ func TestRecordUsage_ImageReasoningPricing(t *testing.T) {
 									APIKey: apiKey, User: user, Account: account, Subscription: &UserSubscription{ID: 1},
 								}))
 							} else {
-								svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+								svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 								svc.resolver = resolver
 								require.NoError(t, svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 									Result: &OpenAIForwardResult{

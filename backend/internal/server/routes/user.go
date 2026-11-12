@@ -66,7 +66,6 @@ func RegisterUserRoutes(
 		groups := authenticated.Group("/groups")
 		{
 			groups.GET("/available", h.APIKey.GetAvailableGroups)
-			groups.GET("/rates", h.APIKey.GetUserGroupRates)
 		}
 
 		// 使用记录（聚合统计属重查询，叠加更严格的按用户限流）

@@ -162,11 +162,6 @@ func TestAdminServiceSimpleModeRejectsAdvancedGroupOperationsDirectly(t *testing
 			_, err := svc.RecoverDuplicateGroup(context.Background(), 1, "admin:1", "key")
 			return err
 		}},
-		{"get multipliers", func() error { _, err := svc.GetGroupRateMultipliers(context.Background(), 1); return err }},
-		{"clear multipliers", func() error { return svc.ClearGroupRateMultipliers(context.Background(), 1) }},
-		{"set multipliers", func() error { return svc.BatchSetGroupRateMultipliers(context.Background(), 1, nil) }},
-		{"clear rpm overrides", func() error { return svc.ClearGroupRPMOverrides(context.Background(), 1) }},
-		{"set rpm overrides", func() error { return svc.BatchSetGroupRPMOverrides(context.Background(), 1, nil) }},
 		{"sort", func() error { return svc.UpdateGroupSortOrders(context.Background(), nil) }},
 	}
 	for _, tt := range tests {

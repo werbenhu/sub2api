@@ -45,7 +45,7 @@ func newInflightTestGinContext() *gin.Context {
 
 func TestReserveInflightBalance_SkipsWhenDisabled(t *testing.T) {
 	cfg := &config.Config{}
-	billing := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billing := service.NewBillingCacheService(nil, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billing.Stop)
 	est := &countingEstimator{cost: 1, priced: true}
 	apiKey := &service.APIKey{User: &service.User{ID: 1}}
@@ -60,7 +60,7 @@ func TestReserveInflightBalance_UnpricedFailOpenByDefaultFailClosedOptIn(t *test
 	cache := newHandlerInflightCache(10)
 	cfg := &config.Config{}
 	cfg.Billing.InflightReservation = config.InflightReservationConfig{Enabled: true, TTLSeconds: 60}
-	billing := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billing := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billing.Stop)
 	apiKey := &service.APIKey{User: &service.User{ID: 1}}
 	est := &countingEstimator{priced: false}
@@ -180,7 +180,7 @@ func TestWrapUsageRecordTaskContext_HandsReservationToBillingTask(t *testing.T) 
 	cache := &handlerSubscriptionCache{handlerInflightCache: newHandlerInflightCache(1)}
 	cfg := &config.Config{}
 	cfg.Billing.InflightReservation = config.InflightReservationConfig{Enabled: true, TTLSeconds: 60}
-	billing := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billing := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billing.Stop)
 	limit := 10.0
 	apiKey := &service.APIKey{User: &service.User{ID: 5}, Group: &service.Group{ID: 7, DailyLimitUSD: &limit}}
@@ -219,11 +219,11 @@ func TestWebSearch_RejectsWhenInflightExceedsSubscriptionLimit(t *testing.T) {
 	cache := &handlerSubscriptionCache{handlerInflightCache: newHandlerInflightCache(1.5)}
 	cfg := &config.Config{}
 	cfg.Billing.InflightReservation = config.InflightReservationConfig{Enabled: true, TTLSeconds: 60}
-	billingCache := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billingCache := service.NewBillingCacheService(cache, nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billingCache.Stop)
 	billing := service.NewBillingService(cfg, nil)
 	gw := service.NewGatewayService(
-		nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, billing, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, billing, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewModelPricingResolver(nil, billing), nil, nil, nil,
 	)
 	h := &GatewayHandler{gatewayService: gw, billingCacheService: billingCache}

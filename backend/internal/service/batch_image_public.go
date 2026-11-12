@@ -43,10 +43,6 @@ type BatchImageGroupPricingRepository interface {
 	GetByIDLite(ctx context.Context, id int64) (*Group, error)
 }
 
-type BatchImageUserGroupRateRepository interface {
-	GetByUserAndGroup(ctx context.Context, userID, groupID int64) (*float64, error)
-}
-
 type BatchImageSubmitRequest struct {
 	Model            string                 `json:"model"`
 	TaskName         string                 `json:"task_name"`
@@ -83,16 +79,16 @@ type BatchImageOwner struct {
 }
 
 type BatchImagePublicService struct {
-	Repo              BatchImageRepository
-	AccountRepo       BatchImageAccountSelectionRepository
-	GroupRepo         BatchImageGroupPricingRepository
-	UserGroupRateRepo BatchImageUserGroupRateRepository
-	Queue             BatchImageQueue
-	ProviderRegistry  *BatchImageProviderRegistry
-	Pricing           BatchImagePricingResolver
-	BillingRepo       UsageBillingRepository
-	AuthCache         APIKeyAuthCacheInvalidator
-	Config            *config.Config
+	Repo        BatchImageRepository
+	AccountRepo BatchImageAccountSelectionRepository
+	GroupRepo   BatchImageGroupPricingRepository
+
+	Queue            BatchImageQueue
+	ProviderRegistry *BatchImageProviderRegistry
+	Pricing          BatchImagePricingResolver
+	BillingRepo      UsageBillingRepository
+	AuthCache        APIKeyAuthCacheInvalidator
+	Config           *config.Config
 }
 
 type BatchImagePricingSnapshot struct {
@@ -183,18 +179,17 @@ type BatchImageItemsQuery struct {
 	Cursor string
 }
 
-func NewBatchImagePublicService(repo BatchImageRepository, accountRepo AccountRepository, groupRepo GroupRepository, userGroupRateRepo UserGroupRateRepository, queue BatchImageQueue, pricing *BatchImageModelPricingResolver, billingRepo UsageBillingRepository, authCache APIKeyAuthCacheInvalidator, cfg *config.Config) *BatchImagePublicService {
+func NewBatchImagePublicService(repo BatchImageRepository, accountRepo AccountRepository, groupRepo GroupRepository, queue BatchImageQueue, pricing *BatchImageModelPricingResolver, billingRepo UsageBillingRepository, authCache APIKeyAuthCacheInvalidator, cfg *config.Config) *BatchImagePublicService {
 	return &BatchImagePublicService{
-		Repo:              repo,
-		AccountRepo:       accountRepo,
-		GroupRepo:         groupRepo,
-		UserGroupRateRepo: userGroupRateRepo,
-		Queue:             queue,
-		ProviderRegistry:  NewBatchImageProviderRegistryFromConfig(cfg),
-		Pricing:           pricing,
-		BillingRepo:       billingRepo,
-		AuthCache:         authCache,
-		Config:            cfg,
+		Repo:             repo,
+		AccountRepo:      accountRepo,
+		GroupRepo:        groupRepo,
+		Queue:            queue,
+		ProviderRegistry: NewBatchImageProviderRegistryFromConfig(cfg),
+		Pricing:          pricing,
+		BillingRepo:      billingRepo,
+		AuthCache:        authCache,
+		Config:           cfg,
 	}
 }
 
@@ -1012,21 +1007,7 @@ func (s *BatchImagePublicService) resolvePricingSnapshot(ctx context.Context, ow
 		if !group.AllowBatchImageGeneration {
 			return nil, ErrBatchImageGroupDisabled
 		}
-		groupDefaultMultiplier := group.RateMultiplier
-		if groupDefaultMultiplier < 0 {
-			groupDefaultMultiplier = 0
-		}
-		effectiveGroupMultiplier := groupDefaultMultiplier
-		if s.UserGroupRateRepo != nil {
-			userRate, rateErr := s.UserGroupRateRepo.GetByUserAndGroup(ctx, owner.UserID, group.ID)
-			if rateErr != nil {
-				return nil, ErrBatchImageSettlementPricingMissing
-			}
-			if userRate != nil {
-				effectiveGroupMultiplier = *userRate
-			}
-		}
-		groupMultiplier = effectiveGroupMultiplier
+		groupMultiplier = group.RateMultiplier
 		if group.ImageRateIndependent {
 			groupMultiplier = group.ImageRateMultiplier
 		}

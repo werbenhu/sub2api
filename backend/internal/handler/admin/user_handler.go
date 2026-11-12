@@ -86,9 +86,6 @@ type UpdateUserRequest struct {
 	Status               string   `json:"status" binding:"omitempty,oneof=active disabled"`
 	AllowedGroups        *[]int64 `json:"allowed_groups"`
 	RestrictPublicGroups *bool    `json:"restrict_public_groups"`
-	// GroupRates 用户专属分组倍率配置
-	// map[groupID]*rate，nil 表示删除该分组的专属倍率
-	GroupRates map[int64]*float64 `json:"group_rates"`
 }
 
 // UpdateBalanceRequest represents balance update request
@@ -371,7 +368,6 @@ func (h *UserHandler) Update(c *gin.Context) {
 		Status:               req.Status,
 		AllowedGroups:        req.AllowedGroups,
 		RestrictPublicGroups: req.RestrictPublicGroups,
-		GroupRates:           req.GroupRates,
 		ActorAdminID:         getAdminIDFromContext(c),
 	})
 	if err != nil {

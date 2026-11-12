@@ -41,7 +41,6 @@ func adminUserResponse(c *gin.Context, user *service.User) any {
 	if slices.Contains(permissions, "groups.read") {
 		out["allowed_groups"] = user.AllowedGroups
 		out["restrict_public_groups"] = user.RestrictPublicGroups
-		out["group_rates"] = user.GroupRates
 	}
 	return out
 }

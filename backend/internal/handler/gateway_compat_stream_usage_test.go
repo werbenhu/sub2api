@@ -85,7 +85,7 @@ func runCompatStreamUsageHandler(t *testing.T, endpoint, upstreamStream string, 
 		usageRepo:   &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 2)},
 		billingRepo: &compatStreamUsageBillingRepo{},
 	}
-	billingCache := service.NewBillingCacheService(newHandlerInflightCache(100), nil, activeSubscriptionRepoStub{}, nil, nil, nil, cfg, nil)
+	billingCache := service.NewBillingCacheService(newHandlerInflightCache(100), nil, activeSubscriptionRepoStub{}, nil, nil, cfg, nil)
 	t.Cleanup(billingCache.Stop)
 
 	pr, pw := io.Pipe()
@@ -101,7 +101,7 @@ func runCompatStreamUsageHandler(t *testing.T, endpoint, upstreamStream string, 
 		Header: http.Header{"X-Request-Id": []string{"compat-stream-usage"}},
 	}}
 	gw := service.NewGatewayService(
-		nil, &fakeGroupRepo{group: group}, run.usageRepo, run.billingRepo, nil, nil, nil, nil, cfg,
+		nil, &fakeGroupRepo{group: group}, run.usageRepo, run.billingRepo, nil, nil, nil, cfg,
 		snapshot, nil, service.NewBillingService(cfg, nil), nil, billingCache, nil, run.upstream,
 		&service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)

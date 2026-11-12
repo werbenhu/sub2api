@@ -44,7 +44,7 @@ func TestQueryUsageCodexCredits(t *testing.T) {
 				http.Error(w, "unavailable", http.StatusServiceUnavailable)
 			}))
 			defer srv.Close()
-			svc := NewOpenAIQuotaService(repo, nil, NewOpenAITokenProvider(repo, tokens, nil), newQuotaRedirectingFactory(srv), nil)
+			svc := NewOpenAIQuotaService(repo, nil, NewOpenAITokenProvider(repo, tokens, nil), newQuotaRedirectingFactory(srv))
 			usage, err := svc.QueryUsage(context.Background(), 100)
 			require.NoError(t, err)
 			require.Positive(t, usage.FetchedAt)
